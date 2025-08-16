@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Alert System - Login & Signup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo i {
+            font-size: 60px;
+            color: #667eea;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .form-container {
+            position: relative;
+        }
+
+        .form {
+            transition: all 0.3s ease;
+        }
+
+        .form.hidden {
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .toggle-form {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .toggle-form a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .toggle-form a:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .otp-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid #667eea;
+        }
+
+        .otp-section h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .patient-id {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .form-tabs {
+            display: flex;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #e1e5e9;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            background: #f8f9fa;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .password-toggle {
+            position: relative;
+        }
+
+        .password-toggle input {
+            padding-right: 50px;
+        }
+
+        .password-toggle button {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .password-toggle button:hover {
+            color: #333;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+
+        .pregnancy-checkbox {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #ffcdd2;
+            transition: all 0.3s ease;
+        }
+
+        .pregnancy-checkbox:hover {
+            background: linear-gradient(135deg, #ffe8e8 0%, #ffcdd2 100%);
+            border-color: #f44336;
+        }
+
+        .pregnancy-checkbox i {
+            color: #e91e63;
+            margin-right: 8px;
+        }
+
+        .pregnancy-fields {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e8f4fd 100%);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            border: 2px solid #e1e5e9;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .pregnancy-fields:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+
+        h4 {
+            color: #333;
+            margin: 20px 0 15px 0;
+            font-size: 18px;
+        }
+
+        select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .help-text {
+            color: #666;
+            font-size: 12px;
+            margin-top: 5px;
+            display: block;
+        }
+
+        input[readonly] {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Logo and Title -->
+        <div class="logo">
+            <i class="fas fa-user-md"></i>
+        </div>
+        <h1>Patient Alert System</h1>
+        <p class="subtitle">Welcome to your health management platform</p>
+
+        <!-- Form Tabs -->
+        <div class="form-tabs">
+            <button class="tab-btn active" onclick="showLogin()">Login</button>
+            <button class="tab-btn" onclick="showSignup()">Sign Up</button>
+        </div>
+
+        <!-- Alert Container -->
+        <div id="alertContainer"></div>
+
+        <!-- Login Form -->
+        <div id="loginForm" class="form">
+            <form id="loginFormElement">
+                <div class="form-group">
+                    <label for="loginIdentifier">Patient ID or Email</label>
+                    <input type="text" id="loginIdentifier" name="loginIdentifier" placeholder="Enter your Patient ID or Email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <div class="password-toggle">
+                        <input type="password" id="loginPassword" name="loginPassword" placeholder="Enter your password" required>
+                        <button type="button" onclick="togglePassword('loginPassword')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="loginBtn">
+                    <span id="loginBtnText">Login</span>
+                    <span id="loginBtnLoading" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+
+            <div class="toggle-form">
+                <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+            </div>
+        </div>
+
+        <!-- Signup Form -->
+        <div id="signupForm" class="form hidden">
+            <form id="signupFormElement">
+                <div class="form-group">
+                    <label for="signupUsername">Username</label>
+                    <input type="text" id="signupUsername" name="signupUsername" placeholder="Enter your username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="signupEmail">Email</label>
+                    <input type="email" id="signupEmail" name="signupEmail" placeholder="Enter your email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="signupMobile">Mobile Number</label>
+                    <input type="tel" id="signupMobile" name="signupMobile" placeholder="Enter your mobile number" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <div class="password-toggle">
+                        <input type="password" id="signupPassword" name="signupPassword" placeholder="Enter your password" required>
+                        <button type="button" onclick="togglePassword('signupPassword')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="signupBtn">
+                    <span id="signupBtnText">Create Account</span>
+                    <span id="signupBtnLoading" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+        </div>
+
+        <!-- OTP Verification Form -->
+        <div id="otpForm" class="form hidden">
+            <div class="otp-section">
+                <h3><i class="fas fa-shield-alt"></i> Email Verification</h3>
+                <p>Please check your email and enter the 6-digit OTP to verify your account.</p>
+                <div class="patient-id" id="patientIdDisplay"></div>
+            </div>
+
+            <form id="otpFormElement">
+                <div class="form-group">
+                    <label for="otpCode">OTP Code</label>
+                    <input type="text" id="otpCode" name="otpCode" placeholder="Enter 6-digit OTP" maxlength="6" required>
+                </div>
+
+                <button type="submit" class="btn" id="otpBtn">
+                    <span id="otpBtnText">Verify OTP</span>
+                    <span id="otpBtnLoading" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+
+            <div class="toggle-form">
+                <a href="#" onclick="resendOtp()">Resend OTP</a> | 
+                <a href="#" onclick="showLogin()">Back to Login</a>
+            </div>
+        </div>
+
+        <!-- Forgot Password Form -->
+        <div id="forgotPasswordForm" class="form hidden">
+            <h3><i class="fas fa-lock"></i> Reset Password</h3>
+            <p>Enter your Patient ID or Email to receive a password reset OTP.</p>
+
+            <form id="forgotPasswordFormElement">
+                <div class="form-group">
+                    <label for="forgotPasswordIdentifier">Patient ID or Email</label>
+                    <input type="text" id="forgotPasswordIdentifier" name="forgotPasswordIdentifier" placeholder="Enter your Patient ID or Email" required>
+                </div>
+
+                <button type="submit" class="btn" id="forgotPasswordBtn">
+                    <span id="forgotPasswordBtnText">Send Reset OTP</span>
+                    <span id="forgotPasswordBtnLoading" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+
+            <div class="toggle-form">
+                <a href="#" onclick="showLogin()">Back to Login</a>
+            </div>
+        </div>
+
+        <!-- Reset Password Form -->
+        <div id="resetPasswordForm" class="form hidden">
+            <h3><i class="fas fa-key"></i> Set New Password</h3>
+            <p>Enter the OTP sent to your email and your new password.</p>
+
+            <form id="resetPasswordFormElement">
+                <div class="form-group">
+                    <label for="resetPasswordOtp">OTP Code</label>
+                    <input type="text" id="resetPasswordOtp" name="resetPasswordOtp" placeholder="Enter 6-digit OTP" maxlength="6" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="resetPasswordNew">New Password</label>
+                    <div class="password-input">
+                        <input type="password" id="resetPasswordNew" name="resetPasswordNew" required>
+                        <button type="button" onclick="togglePassword('resetPasswordNew')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="resetPasswordConfirm">Confirm New Password</label>
+                    <div class="password-input">
+                        <input type="password" id="resetPasswordConfirm" name="resetPasswordConfirm" required>
+                        <button type="button" onclick="togglePassword('resetPasswordConfirm')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="resetPasswordBtn">
+                    <span id="resetPasswordBtnText">Reset Password</span>
+                    <span id="resetPasswordBtnLoading" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+
+            <div class="toggle-form">
+                <a href="#" onclick="resendResetOtp()">Resend OTP</a>
+                <span class="separator">|</span>
+                <a href="#" onclick="showLogin()">Back to Login</a>
+            </div>
+        </div>
+
+        <!-- Profile Information Form -->
+        <div id="profileForm" class="form hidden">
+            <h3><i class="fas fa-user-edit"></i> Complete Your Profile</h3>
+            <p>Please provide your information to complete your profile setup.</p>
+
+            <form id="profileFormElement">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="firstName">First Name</label>
+                        <input type="text" id="firstName" name="firstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name</label>
+                        <input type="text" id="lastName" name="lastName" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dateOfBirth">Date of Birth</label>
+                        <input type="date" id="dateOfBirth" name="dateOfBirth" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="bloodType">Blood Type</label>
+                        <select id="bloodType" name="bloodType" required>
+                            <option value="">Select Blood Type</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label pregnancy-checkbox">
+                        <input type="checkbox" id="isPregnant" name="isPregnant">
+                        <span class="checkmark"></span>
+                        <i class="fas fa-baby"></i> Are you pregnant?
+                    </label>
+                </div>
+
+                <div id="pregnancyFields" class="pregnancy-fields" style="display: none;">
+                    <div class="form-group">
+                        <label for="lastPeriodDate">Last Period Date</label>
+                        <input type="date" id="lastPeriodDate" name="lastPeriodDate" required>
+                        <small class="help-text">Enter the first day of your last menstrual period</small>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="pregnancyWeek">Pregnancy Week</label>
+                            <input type="number" id="pregnancyWeek" name="pregnancyWeek" min="1" max="42" placeholder="Calculated automatically" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="expectedDelivery">Expected Delivery Date</label>
+                            <input type="date" id="expectedDelivery" name="expectedDelivery" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <h4><i class="fas fa-phone"></i> Emergency Contact</h4>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="emergencyName">Emergency Contact Name</label>
+                        <input type="text" id="emergencyName" name="emergencyName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="emergencyRelationship">Relationship</label>
+                        <input type="text" id="emergencyRelationship" name="emergencyRelationship" placeholder="e.g., Spouse, Parent" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="emergencyPhone">Emergency Contact Phone</label>
+                    <input type="tel" id="emergencyPhone" name="emergencyPhone" required>
+                </div>
+
+                <button type="submit" class="btn" id="profileBtn">
+                    <span id="profileBtnText">Complete Profile</span>
+                    <span id="profileBtnLoading" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+
+            <div class="toggle-form">
+                <a href="#" onclick="showDashboard()">Skip for now</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000';
+        let currentPatientId = null;
+        let currentEmail = null;
+
+        // Form switching functions
+        function showLogin() {
+            hideAllForms();
+            document.getElementById('loginForm').classList.remove('hidden');
+            updateTabButtons('login');
+            clearAlerts();
+        }
+
+        function showSignup() {
+            hideAllForms();
+            document.getElementById('signupForm').classList.remove('hidden');
+            updateTabButtons('signup');
+            clearAlerts();
+        }
+
+        function showOtpForm(patientId, email) {
+            currentPatientId = patientId;
+            currentEmail = email;
+            
+            if (patientId) {
+                document.getElementById('patientIdDisplay').textContent = `Patient ID: ${patientId}`;
+            } else {
+                document.getElementById('patientIdDisplay').textContent = `Email: ${email}`;
+            }
+            
+            hideAllForms();
+            document.getElementById('otpForm').classList.remove('hidden');
+            updateTabButtons('otp');
+            clearAlerts();
+        }
+
+        function showForgotPassword() {
+            hideAllForms();
+            document.getElementById('forgotPasswordForm').classList.remove('hidden');
+            updateTabButtons('forgot');
+            clearAlerts();
+        }
+
+        function hideAllForms() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('signupForm').classList.add('hidden');
+            document.getElementById('otpForm').classList.add('hidden');
+            document.getElementById('forgotPasswordForm').classList.add('hidden');
+            document.getElementById('resetPasswordForm').classList.add('hidden');
+            document.getElementById('profileForm').classList.add('hidden');
+        }
+
+        function updateTabButtons(activeTab) {
+            const tabs = document.querySelectorAll('.tab-btn');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            if (activeTab === 'login') {
+                tabs[0].classList.add('active');
+            } else if (activeTab === 'signup') {
+                tabs[1].classList.add('active');
+            }
+        }
+
+        function clearAlerts() {
+            document.getElementById('alertContainer').innerHTML = '';
+        }
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+
+        function setLoading(buttonId, textId, loadingId, isLoading) {
+            const button = document.getElementById(buttonId);
+            const text = document.getElementById(textId);
+            const loading = document.getElementById(loadingId);
+            
+            if (isLoading) {
+                button.disabled = true;
+                text.style.display = 'none';
+                loading.style.display = 'inline-block';
+            } else {
+                button.disabled = false;
+                text.style.display = 'inline';
+                loading.style.display = 'none';
+            }
+        }
+
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const button = input.parentNode.querySelector('button i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                button.className = 'fas fa-eye';
+            }
+        }
+
+        // API functions
+        async function login(loginIdentifier, password) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        login_identifier: loginIdentifier,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert(`Login successful! Welcome, ${data.username}.`, 'success');
+                    // Store user data in localStorage
+                    localStorage.setItem('patientId', data.patient_id);
+                    localStorage.setItem('username', data.username);
+                    localStorage.setItem('email', data.email);
+                    localStorage.setItem('isProfileComplete', data.is_profile_complete);
+                    
+                    setTimeout(() => {
+                        if (data.is_profile_complete) {
+                            showDashboard();
+                        } else {
+                            showProfileForm(data.patient_id);
+                        }
+                    }, 2000);
+                } else {
+                    showAlert(data.error || 'Login failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        async function signup(username, email, mobile, password) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        email: email,
+                        mobile: mobile,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Please check your email for OTP verification.', 'success');
+                    showOtpForm(null, email); // No patient_id yet, will be generated after OTP verification
+                } else {
+                    showAlert(data.error || 'Signup failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        async function verifyOtp(email, otp) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/verify-otp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        otp: otp
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const patientId = data.patient_id;
+                    showAlert(`Account created successfully! Your Patient ID is: ${patientId}`, 'success');
+                    showAlert('Patient ID has been sent to your email. You can now login.', 'info');
+                    setTimeout(() => {
+                        showLogin();
+                    }, 3000);
+                } else {
+                    showAlert(data.error || 'OTP verification failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        async function forgotPassword(loginIdentifier) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        login_identifier: loginIdentifier
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Password reset OTP sent to your email', 'success');
+                    currentEmail = data.email;
+                    // Show reset password form
+                    showResetPasswordForm();
+                } else {
+                    showAlert(data.error || 'Failed to send OTP', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        function showResetPasswordForm() {
+            hideAllForms();
+            document.getElementById('resetPasswordForm').classList.remove('hidden');
+            clearAlerts();
+        }
+
+        async function resetPassword(email, otp, newPassword) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/reset-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        otp: otp,
+                        new_password: newPassword
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Password reset successfully! You can now login with your new password.', 'success');
+                    setTimeout(() => {
+                        showLogin();
+                    }, 2000);
+                } else {
+                    showAlert(data.error || 'Password reset failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        async function resendResetOtp() {
+            if (!currentEmail) {
+                showAlert('No email available for resending OTP', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        login_identifier: currentEmail
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Reset OTP resent successfully', 'success');
+                } else {
+                    showAlert(data.error || 'Failed to resend OTP', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        function showProfileForm(patientId) {
+            currentPatientId = patientId;
+            hideAllForms();
+            document.getElementById('profileForm').classList.remove('hidden');
+            clearAlerts();
+            
+            // Show/hide pregnancy fields based on checkbox
+            document.getElementById('isPregnant').addEventListener('change', function() {
+                const pregnancyFields = document.getElementById('pregnancyFields');
+                pregnancyFields.style.display = this.checked ? 'block' : 'none';
+                
+                if (this.checked) {
+                    // Set a reasonable default date (3 months ago) for last period date
+                    const threeMonthsAgo = new Date();
+                    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+                    document.getElementById('lastPeriodDate').value = threeMonthsAgo.toISOString().split('T')[0];
+                    calculatePregnancyDates();
+                    showAlert('Please enter the first day of your last menstrual period to calculate pregnancy week and delivery date.', 'info');
+                } else {
+                    // Clear pregnancy fields when unchecked
+                    document.getElementById('lastPeriodDate').value = '';
+                    document.getElementById('pregnancyWeek').value = '';
+                    document.getElementById('expectedDelivery').value = '';
+                    showAlert('Pregnancy information cleared.', 'info');
+                }
+            });
+            
+            // Calculate pregnancy dates when last period date changes
+            document.getElementById('lastPeriodDate').addEventListener('change', function() {
+                if (document.getElementById('isPregnant').checked) {
+                    if (this.value) {
+                        showAlert('Calculating pregnancy week and delivery date...', 'info');
+                        setTimeout(() => {
+                            calculatePregnancyDates();
+                        }, 500);
+                    } else {
+                        document.getElementById('pregnancyWeek').value = '';
+                        document.getElementById('expectedDelivery').value = '';
+                    }
+                }
+            });
+        }
+
+        function calculatePregnancyDates() {
+            const lastPeriodDate = document.getElementById('lastPeriodDate').value;
+            
+            if (!lastPeriodDate) {
+                document.getElementById('pregnancyWeek').value = '';
+                document.getElementById('expectedDelivery').value = '';
+                return;
+            }
+            
+            try {
+                const lastPeriod = new Date(lastPeriodDate);
+                const today = new Date();
+                
+                // Validate that last period date is not in the future
+                if (lastPeriod > today) {
+                    showAlert('Last period date cannot be in the future. Please enter a valid date.', 'error');
+                    document.getElementById('pregnancyWeek').value = '';
+                    document.getElementById('expectedDelivery').value = '';
+                    return;
+                }
+                
+                // Calculate pregnancy week (gestational age)
+                const daysDiff = Math.floor((today - lastPeriod) / (1000 * 60 * 60 * 24));
+                let pregnancyWeek = Math.floor(daysDiff / 7);
+                
+                // Ensure pregnancy week is within valid range (1-42 weeks)
+                if (pregnancyWeek < 1) {
+                    pregnancyWeek = 1;
+                } else if (pregnancyWeek > 42) {
+                    pregnancyWeek = 42;
+                }
+                
+                // Calculate expected delivery date (40 weeks from last period)
+                const expectedDelivery = new Date(lastPeriod);
+                expectedDelivery.setDate(expectedDelivery.getDate() + (40 * 7));
+                
+                // Update form fields
+                document.getElementById('pregnancyWeek').value = pregnancyWeek;
+                document.getElementById('expectedDelivery').value = expectedDelivery.toISOString().split('T')[0];
+                
+                // Show calculation info with more details
+                const deliveryDateFormatted = expectedDelivery.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
+                showAlert(`✅ Calculated: Week ${pregnancyWeek} | Expected Delivery: ${deliveryDateFormatted}`, 'success');
+                
+            } catch (error) {
+                console.error('Error calculating pregnancy dates:', error);
+                showAlert('Error calculating pregnancy dates. Please check the date format.', 'error');
+                document.getElementById('pregnancyWeek').value = '';
+                document.getElementById('expectedDelivery').value = '';
+            }
+        }
+
+        function showDashboard() {
+            // For now, just show a success message
+            showAlert('Welcome to your dashboard!', 'success');
+            setTimeout(() => {
+                showLogin();
+            }, 2000);
+        }
+
+        async function completeProfile(patientId, profileData) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/complete-profile`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        patient_id: patientId,
+                        ...profileData
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Profile completed successfully!', 'success');
+                    setTimeout(() => {
+                        showDashboard();
+                    }, 2000);
+                } else {
+                    showAlert(data.error || 'Failed to complete profile', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        async function resendOtp() {
+            if (!currentEmail) {
+                showAlert('No email available for resending OTP', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/send-otp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: currentEmail
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('OTP resent successfully', 'success');
+                } else {
+                    showAlert(data.error || 'Failed to resend OTP', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            }
+        }
+
+        // Event listeners
+        document.getElementById('loginFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearAlerts();
+            
+            const loginIdentifier = document.getElementById('loginIdentifier').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            
+            setLoading('loginBtn', 'loginBtnText', 'loginBtnLoading', true);
+            await login(loginIdentifier, password);
+            setLoading('loginBtn', 'loginBtnText', 'loginBtnLoading', false);
+        });
+
+        document.getElementById('signupFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearAlerts();
+            
+            const username = document.getElementById('signupUsername').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const mobile = document.getElementById('signupMobile').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            
+            setLoading('signupBtn', 'signupBtnText', 'signupBtnLoading', true);
+            await signup(username, email, mobile, password);
+            setLoading('signupBtn', 'signupBtnText', 'signupBtnLoading', false);
+        });
+
+        document.getElementById('otpFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearAlerts();
+            
+            const otp = document.getElementById('otpCode').value.trim();
+            
+            setLoading('otpBtn', 'otpBtnText', 'otpBtnLoading', true);
+            await verifyOtp(currentEmail, otp);
+            setLoading('otpBtn', 'otpBtnText', 'otpBtnLoading', false);
+        });
+
+        document.getElementById('forgotPasswordFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearAlerts();
+            
+            const loginIdentifier = document.getElementById('forgotPasswordIdentifier').value.trim();
+            
+            setLoading('forgotPasswordBtn', 'forgotPasswordBtnText', 'forgotPasswordBtnLoading', true);
+            await forgotPassword(loginIdentifier);
+            setLoading('forgotPasswordBtn', 'forgotPasswordBtnText', 'forgotPasswordBtnLoading', false);
+        });
+
+        document.getElementById('resetPasswordFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearAlerts();
+            
+            const otp = document.getElementById('resetPasswordOtp').value.trim();
+            const newPassword = document.getElementById('resetPasswordNew').value;
+            const confirmPassword = document.getElementById('resetPasswordConfirm').value;
+            
+            if (newPassword !== confirmPassword) {
+                showAlert('Passwords do not match', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                showAlert('Password must be at least 6 characters long', 'error');
+                return;
+            }
+            
+            setLoading('resetPasswordBtn', 'resetPasswordBtnText', 'resetPasswordBtnLoading', true);
+            await resetPassword(currentEmail, otp, newPassword);
+            setLoading('resetPasswordBtn', 'resetPasswordBtnText', 'resetPasswordBtnLoading', false);
+        });
+
+        document.getElementById('profileFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearAlerts();
+            
+            const profileData = {
+                first_name: document.getElementById('firstName').value.trim(),
+                last_name: document.getElementById('lastName').value.trim(),
+                date_of_birth: document.getElementById('dateOfBirth').value,
+                blood_type: document.getElementById('bloodType').value,
+                is_pregnant: document.getElementById('isPregnant').checked,
+                last_period_date: document.getElementById('lastPeriodDate').value,
+                pregnancy_week: document.getElementById('pregnancyWeek').value.trim(),
+                expected_delivery_date: document.getElementById('expectedDelivery').value,
+                emergency_name: document.getElementById('emergencyName').value.trim(),
+                emergency_relationship: document.getElementById('emergencyRelationship').value.trim(),
+                emergency_phone: document.getElementById('emergencyPhone').value.trim()
+            };
+            
+            // Validate required fields
+            if (!profileData.first_name || !profileData.last_name || !profileData.date_of_birth || 
+                !profileData.blood_type || !profileData.emergency_name || !profileData.emergency_phone) {
+                showAlert('Please fill in all required fields', 'error');
+                return;
+            }
+            
+            setLoading('profileBtn', 'profileBtnText', 'profileBtnLoading', true);
+            await completeProfile(currentPatientId, profileData);
+            setLoading('profileBtn', 'profileBtnText', 'profileBtnLoading', false);
+        });
+
+        // Initialize
+        showLogin();
+    </script>
+</body>
+</html> 
