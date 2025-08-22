@@ -47,9 +47,38 @@ try:
     from qdrant_client import QdrantClient
     from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue, PayloadSchemaType
     QDRANT_AVAILABLE = True
+    print("✅ Qdrant client imported successfully")
 except ImportError:
     QDRANT_AVAILABLE = False
-    print("⚠️ Qdrant client not available. Install with: pip install qdrant-client")
+    # Create dummy classes to prevent NameError
+    class Filter:
+        def __init__(self, should=None, must=None, must_not=None):
+            self.should = should or []
+            self.must = must or []
+            self.must_not = must_not or []
+    
+    class FieldCondition:
+        def __init__(self, key=None, match=None):
+            self.key = key
+            self.match = match
+    
+    class MatchValue:
+        def __init__(self, value=None):
+            self.value = value
+    
+    class Distance:
+        pass
+    
+    class VectorParams:
+        pass
+    
+    class PointStruct:
+        pass
+    
+    class PayloadSchemaType:
+        pass
+    
+    print("⚠️ Qdrant client not available - using dummy classes. Install with: pip install qdrant-client")
 
 try:
     from openai import OpenAI
@@ -166,10 +195,10 @@ class Database:
         retry_count = 0
         
         while retry_count < max_retries:
-            try:
-                mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-                db_name = os.getenv("DB_NAME", "patients_db")
-                
+        try:
+            mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+            db_name = os.getenv("DB_NAME", "patients_db")
+            
                 print(f"🔍 Attempting to connect to MongoDB (attempt {retry_count + 1}/{max_retries})...")
                 print(f"🔍 URI: {mongo_uri}")
                 print(f"🔍 Database: {db_name}")
@@ -189,11 +218,11 @@ class Database:
                 print("✅ MongoDB connection test successful")
                 
                 # Get database
-                db = self.client[db_name]
+            db = self.client[db_name]
                 print(f"✅ Database '{db_name}' accessed successfully")
                 
                 # Initialize collections
-                self.patients_collection = db["patients_v2"]
+            self.patients_collection = db["patients_v2"]
                 self.mental_health_collection = db["mental_health_logs"]
                 
                 # Test collections exist and are accessible
@@ -204,19 +233,19 @@ class Database:
                 # Create indexes with error handling
                 print("🔍 Creating indexes...")
                 try:
-                    self.patients_collection.create_index("patient_id", unique=True, sparse=True)
+            self.patients_collection.create_index("patient_id", unique=True, sparse=True)
                     print("✅ patient_id index created")
                 except Exception as e:
                     print(f"⚠️ patient_id index creation failed: {e}")
                 
                 try:
-                    self.patients_collection.create_index("email", unique=True, sparse=True)
+            self.patients_collection.create_index("email", unique=True, sparse=True)
                     print("✅ email index created")
                 except Exception as e:
                     print(f"⚠️ email index creation failed: {e}")
                 
                 try:
-                    self.patients_collection.create_index("mobile", unique=True, sparse=True)
+            self.patients_collection.create_index("mobile", unique=True, sparse=True)
                     print("✅ mobile index created")
                 except Exception as e:
                     print(f"⚠️ mobile index creation failed: {e}")
@@ -248,13 +277,13 @@ class Database:
                     print("✅ mental_health compound index created (non-unique)")
                 except Exception as e:
                     print(f"⚠️ mental_health compound index creation failed: {e}")
-                
-                print("✅ Connected to MongoDB successfully")
+            
+            print("✅ Connected to MongoDB successfully")
                 print(f"✅ Database: {db_name}")
                 print(f"✅ Collections: patients_v2, mental_health_logs")
                 return  # Success, exit the retry loop
                 
-            except Exception as e:
+        except Exception as e:
                 retry_count += 1
                 print(f"❌ Database connection attempt {retry_count} failed: {e}")
                 print(f"🔍 Error type: {type(e).__name__}")
@@ -262,7 +291,7 @@ class Database:
                 
                 if retry_count >= max_retries:
                     print(f"❌ All {max_retries} connection attempts failed")
-                    self.patients_collection = None
+            self.patients_collection = None
                     self.mental_health_collection = None
                 else:
                     print(f"🔄 Retrying in 2 seconds...")
@@ -1162,7 +1191,7 @@ def send_patient_id_email(email: str, patient_id: str, username: str) -> bool:
     """Send Patient ID to user's email"""
     try:
         subject = "Your Patient ID - Patient Alert System"
-        body = f"""
+    body = f"""
 Hello {username},
 
 Your Patient ID has been generated successfully.
@@ -1196,12 +1225,12 @@ Frequency: {frequency}
 {f"Special Instructions: {special_instructions}" if special_instructions else ""}
 
 Please take your medication as prescribed by your doctor.
-
-Best regards,
-Patient Alert System Team
-        """
+    
+    Best regards,
+    Patient Alert System Team
+    """
         
-        return send_email(email, subject, body)
+    return send_email(email, subject, body)
     except Exception as e:
         print(f"Error sending medication reminder email: {e}")
         return False
@@ -2533,12 +2562,12 @@ def get_symptom_assistance():
         
         # Determine trimester
         if weeks_pregnant <= 12:
-            trimester = "First Trimester"
+                trimester = "First Trimester"
         elif weeks_pregnant <= 26:
-            trimester = "Second Trimester"
-        else:
-            trimester = "Third Trimester"
-        
+                trimester = "Second Trimester"
+            else:
+                trimester = "Third Trimester"
+            
         print(f"🔍 Analyzing symptoms: '{symptom_text}' for week {weeks_pregnant} ({trimester})")
         
         # Step 1: Try quantum vector search for knowledge base retrieval
@@ -2758,7 +2787,7 @@ def save_symptom_log():
         
         if not symptom_text:
             return jsonify({
-                'success': False,
+                'success': False, 
                 'message': 'Symptom description is required'
             }), 400
         
@@ -2895,13 +2924,13 @@ def save_symptom_analysis_report():
         
         # Add analysis report to patient's symptom_analysis_reports array
         result = db.patients_collection.update_one(
-            {"patient_id": patient_id},
+                        {"patient_id": patient_id},
             {
                 "$push": {"symptom_analysis_reports": analysis_report},
                 "$set": {"last_updated": datetime.now()}
             }
-        )
-        
+                    )
+            
         if result.modified_count > 0:
             # Log the symptom analysis activity
             activity_tracker.log_activity(
@@ -2929,7 +2958,7 @@ def save_symptom_analysis_report():
             }), 200
         else:
             return jsonify({'success': False, 'message': 'Failed to save analysis report'}), 500
-            
+        
     except Exception as e:
         print(f"Error saving symptom analysis report: {e}")
         return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
@@ -3054,7 +3083,7 @@ def save_medication_log():
         
         if not medication_name:
             return jsonify({
-                'success': False,
+                'success': False, 
                 'message': 'Medication name is required'
             }), 400
         
@@ -3171,7 +3200,7 @@ def save_medication_log():
             }), 200
         else:
             return jsonify({'success': False, 'message': 'Failed to save medication log'}), 500
-            
+        
     except Exception as e:
         print(f"Error saving medication log: {e}")
         return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
@@ -3571,8 +3600,8 @@ def process_prescription_document():
             
             # Validate file type with enhanced service
             if not enhanced_ocr_service.validate_file_type(file.content_type, file.filename):
-                return jsonify({
-                    'success': False, 
+        return jsonify({
+            'success': False,
                     'message': f'Unsupported file type: {file.content_type}. Supported types: {enhanced_ocr_service.allowed_types}'
                 }), 400
             
@@ -3623,8 +3652,8 @@ def process_prescription_document():
             
             # Validate file type with basic service
             if not ocr_service.validate_file_type(file.content_type, file.filename):
-                return jsonify({
-                    'success': False, 
+            return jsonify({
+                'success': False,
                     'message': f'Unsupported file type: {file.content_type}. Supported types: {list(ocr_service.supported_formats.keys())}'
                 }), 400
             
@@ -3678,8 +3707,8 @@ def process_with_paddleocr():
         print("🚀 Processing prescription with medication folder PaddleOCR service...")
         
         if not enhanced_ocr_service or not OCR_SERVICES_AVAILABLE:
-            return jsonify({
-                'success': False, 
+        return jsonify({
+            'success': False,
                 'message': 'PaddleOCR service not available (paddlepaddle not installed)'
             }), 503
         
@@ -3891,7 +3920,7 @@ def process_prescription_text():
         
         print(f"✅ Successfully processed prescription text")
         
-        return jsonify({
+            return jsonify({
             'success': True,
             'message': 'Prescription text processed successfully',
             'extracted_info': extracted_info,
@@ -4031,7 +4060,7 @@ def process_with_n8n_webhook():
         
         if not webhook_service or not webhook_service.is_configured():
             return jsonify({
-                'success': False, 
+                'success': False,
                 'message': 'Webhook service not available or not configured'
             }), 503
         
@@ -4085,8 +4114,8 @@ def process_with_n8n_webhook():
             
             if n8n_success:
                 print("✅ N8N webhook sent successfully using medication folder service")
-                return jsonify({
-                    'success': True,
+            return jsonify({
+                'success': True,
                     'message': 'Prescription sent to N8N webhook successfully',
                     'webhook_results': webhook_results,
                     'ocr_data': ocr_data,
@@ -4098,22 +4127,22 @@ def process_with_n8n_webhook():
                         'timestamp': datetime.now().isoformat()
                     },
                     'timestamp': datetime.now().isoformat()
-                }), 200
-            else:
+            }), 200
+        else:
                 print("❌ N8N webhook failed")
-                return jsonify({
-                    'success': False,
+            return jsonify({
+                'success': False,
                     'message': 'Failed to send to N8N webhook',
                     'webhook_results': webhook_results,
                     'error': 'All webhook attempts failed'
                 }), 500
-                
-        except Exception as e:
+        
+    except Exception as e:
             print(f"❌ Error sending to N8N webhook: {e}")
-            return jsonify({
-                'success': False,
+        return jsonify({
+            'success': False,
                 'message': f'Error sending to N8N webhook: {str(e)}'
-            }), 500
+        }), 500
 
     except Exception as e:
         print(f"❌ Error processing with N8N webhook: {e}")
@@ -4138,8 +4167,8 @@ def quantum_health_check():
 def quantum_collections():
     """Get Qdrant collections information"""
     if not quantum_service.client:
-        return jsonify({
-            'success': False,
+            return jsonify({
+                'success': False,
             'message': 'Qdrant client not available'
         }), 503
     
@@ -4223,21 +4252,21 @@ def llm_test():
             )
             
             content = response.choices[0].message.content.strip()
-            
-            return jsonify({
-                'success': True,
+        
+        return jsonify({
+            'success': True,
                 'test_prompt': test_prompt,
                 'response': content,
                 'model_used': LLM_MODEL,
                 'timestamp': datetime.now().isoformat()
-            }), 200
-            
-        except Exception as e:
-            return jsonify({
-                'success': False,
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
                 'message': f'LLM test failed: {str(e)}'
-            }), 500
-            
+        }), 500
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -4258,10 +4287,10 @@ def add_knowledge():
         required_fields = ['text', 'source', 'trimester']
         for field in required_fields:
             if field not in data:
-                return jsonify({
-                    'success': False,
+            return jsonify({
+                'success': False,
                     'message': f'Missing required field: {field}'
-                }), 400
+            }), 400
         
         if not quantum_service.client or not quantum_service.embedding_model:
             return jsonify({
