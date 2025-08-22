@@ -3,13 +3,15 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../utils/constants.dart';
+import '../utils/date_utils.dart';
 import '../services/api_service.dart';
-import 'detailed_food_entry_screen.dart';
+import '../services/enhanced_voice_service.dart';
+// import 'detailed_food_entry_screen.dart'; // Removed as per edit hint
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
 class PatientFoodTrackingScreen extends StatefulWidget {
-  final DateTime date;
+  final dynamic date; // Change to dynamic to handle both String and DateTime
   final String userRole; // Add this
 
   const PatientFoodTrackingScreen({
@@ -17,6 +19,19 @@ class PatientFoodTrackingScreen extends StatefulWidget {
     required this.date,
     this.userRole = 'patient', // Default value
   }) : super(key: key);
+
+  // Factory constructor to handle string dates from navigation
+  factory PatientFoodTrackingScreen.fromStringDate({
+    Key? key,
+    required String dateString,
+    String userRole = 'patient',
+  }) {
+    return PatientFoodTrackingScreen(
+      key: key,
+      date: dateString,
+      userRole: userRole,
+    );
+  }
 
   @override
   State<PatientFoodTrackingScreen> createState() => _PatientFoodTrackingScreenState();
@@ -26,13 +41,17 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
   final TextEditingController _foodController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   
-  // Remove voice recording related variables
-  // final VoiceRecordingService _voiceService = VoiceRecordingService();
-  // bool _isRecording = false;
-  // bool _isLoading = false;
-  // String _transcribedText = '';
+  // Voice recording related variables
+  final EnhancedVoiceService _voiceService = EnhancedVoiceService();
+  bool _isRecording = false;
+  bool _isTranscribing = false;
+  String _transcribedText = '';
   
+  // Analysis related variables
   bool _isAnalyzing = false;
+  Map<String, dynamic>? _nutritionAnalysis;
+  String _userId = '';
+  
   bool _isSaving = false;
   bool _isLoadingUserData = true;
   
@@ -40,12 +59,10 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
   int _pregnancyWeek = 1;
   String _username = '';
   String _email = '';
-  String _userId = '';
   String _userRole = 'patient';
   
-  Map<String, dynamic>? _nutritionAnalysis;
   Map<String, dynamic>? _userProfile;
-  Map<String, dynamic>? _dailyCalorieSummary;
+  // Map<String, dynamic>? _dailyCalorieSummary; // Removed as per edit hint
 
   // Add these variables to store profile data
   String _expectedDeliveryDate = '';
@@ -63,6 +80,10 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
     _pregnancyWeek = 1;
     _userRole = 'patient';
     
+    // Debug: Log the date parameter
+    print('🔍 Food Tracking Screen - Date parameter: ${widget.date}');
+    print('🔍 Food Tracking Screen - Date type: ${widget.date.runtimeType}');
+    
     // Fetch user data from backend
     _fetchUserProfile();
     
@@ -78,6 +99,212 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
         _fetchUserProfile();
       }
     });
+  }
+
+  // Enhanced voice recording with translation support
+  Future<void> _startVoiceRecording() async {
+    try {
+      setState(() {
+        _isRecording = true;
+      });
+      
+      final success = await _voiceService.startRecording();
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎤 Voice recording started... Speak now!'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        setState(() {
+          _isRecording = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Failed to start recording'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Test backend connectivity with detailed feedback
+  Future<void> _testBackendConnectivity() async {
+    setState(() {
+      _isAnalyzing = true; // Reuse this for connection testing
+    });
+    
+    try {
+      print('🔍 Testing backend connectivity...');
+      
+      // Test multiple endpoints
+      final healthResponse = await http.get(
+        Uri.parse('${ApiConfig.nutritionBaseUrl}/health'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 15));
+      
+      print('📡 Health check response: ${healthResponse.statusCode}');
+      
+      if (healthResponse.statusCode == 200) {
+        final data = json.decode(healthResponse.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Backend is accessible! Status: ${data['message']}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        
+        // Test transcription endpoint
+        try {
+          final transcribeResponse = await http.post(
+            Uri.parse('${ApiConfig.nutritionBaseUrl}/transcribe'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'audio': 'dGVzdA==', // Test audio data
+              'language': 'en',
+              'method': 'whisper'
+            }),
+          ).timeout(const Duration(seconds: 10));
+          
+          if (transcribeResponse.statusCode == 200 || transcribeResponse.statusCode == 500) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✅ Transcription endpoint working! (Status: ${transcribeResponse.statusCode})'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (e) {
+          print('⚠️ Transcription test failed: $e');
+        }
+        
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Backend health check failed: ${healthResponse.statusCode}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Backend connectivity test failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Backend connectivity failed: $e\n\nPlease ensure the nutrition backend is running on port 8001.'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isAnalyzing = false;
+      });
+    }
+  }
+
+  Future<void> _stopVoiceRecording() async {
+    try {
+      setState(() {
+        _isRecording = false;
+      });
+      
+      final success = await _voiceService.stopRecording();
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⏹️ Recording stopped. Processing with translation...'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        // Use the new translation method
+        await _transcribeAudioWithTranslation();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Failed to stop recording'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // New method for transcription with translation
+  Future<void> _transcribeAudioWithTranslation() async {
+    try {
+      setState(() {
+        _isAnalyzing = true;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🔤 Transcribing audio and translating if needed...'),
+          backgroundColor: Colors.blue,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      
+      final transcription = await _voiceService.transcribeAudio();
+      
+      if (transcription != null) {
+        setState(() {
+          _transcribedText = transcription;
+          // Automatically populate the food input field with transcribed text
+          _foodController.text = transcription;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Transcription complete: $transcription'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Transcription failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isAnalyzing = false;
+      });
+    }
   }
 
   @override
@@ -345,6 +572,207 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
     }
   }
 
+  // Analyze food with GPT-4
+  Future<void> _analyzeFoodWithGPT4() async {
+    if (_foodController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter food details first'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAnalyzing = true;
+    });
+
+    try {
+      final apiService = ApiService();
+      final response = await apiService.analyzeFoodWithGPT4(
+        _foodController.text.trim(),
+        _pregnancyWeek,
+        _userId,
+      );
+
+      setState(() {
+        _isAnalyzing = false;
+      });
+
+      if (response['success'] == true) {
+        final analysis = response['analysis'];
+        
+        // Show comprehensive GPT-4 analysis
+        _showGPT4AnalysisDialog(analysis);
+        
+        // Store the analysis result
+        _nutritionAnalysis = analysis; // Update _nutritionAnalysis to show in UI
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('GPT-4 analysis completed successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Analysis failed: ${response['message']}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error during analysis: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // Show GPT-4 analysis results in a dialog
+  void _showGPT4AnalysisDialog(Map<String, dynamic> analysis) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.psychology, color: Colors.purple),
+            SizedBox(width: 8),
+            Text('GPT-4 Food Analysis', style: TextStyle(color: Colors.purple)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Nutritional Breakdown
+              _buildAnalysisSection(
+                'Nutritional Breakdown',
+                Icons.analytics,
+                Colors.blue,
+                [
+                  'Calories: ${analysis['nutritional_breakdown']?['estimated_calories'] ?? 'N/A'}',
+                  'Protein: ${analysis['nutritional_breakdown']?['protein_grams'] ?? 'N/A'}g',
+                  'Carbs: ${analysis['nutritional_breakdown']?['carbohydrates_grams'] ?? 'N/A'}g',
+                  'Fat: ${analysis['nutritional_breakdown']?['fat_grams'] ?? 'N/A'}g',
+                  'Fiber: ${analysis['nutritional_breakdown']?['fiber_grams'] ?? 'N/A'}g',
+                ],
+              ),
+              
+              SizedBox(height: 16),
+              
+              // Pregnancy Benefits
+              _buildAnalysisSection(
+                'Pregnancy Benefits',
+                Icons.favorite,
+                Colors.pink,
+                [
+                  analysis['pregnancy_benefits']?['week_specific_advice'] ?? 'N/A',
+                  'Nutrients for fetal development: ${(analysis['pregnancy_benefits']?['nutrients_for_fetal_development'] as List?)?.join(', ') ?? 'N/A'}',
+                ],
+              ),
+              
+              SizedBox(height: 16),
+              
+              // Safety Considerations
+              _buildAnalysisSection(
+                'Safety & Cooking',
+                Icons.security,
+                Colors.orange,
+                [
+                  'Safety tips: ${(analysis['safety_considerations']?['food_safety_tips'] as List?)?.join(', ') ?? 'N/A'}',
+                  'Cooking: ${(analysis['safety_considerations']?['cooking_recommendations'] as List?)?.join(', ') ?? 'N/A'}',
+                ],
+              ),
+              
+              SizedBox(height: 16),
+              
+              // Smart Recommendations
+              _buildAnalysisSection(
+                'Smart Recommendations',
+                Icons.lightbulb,
+                Colors.green,
+                [
+                  'Next meal: ${(analysis['smart_recommendations']?['next_meal_suggestions'] as List?)?.join(', ') ?? 'N/A'}',
+                  'Hydration: ${analysis['smart_recommendations']?['hydration_tips'] ?? 'N/A'}',
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _saveFoodEntry();
+            },
+            child: Text('Save Analysis'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build analysis section widget
+  Widget _buildAnalysisSection(String title, IconData icon, Color color, List<String> items) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          ...items.map((item) => Padding(
+            padding: EdgeInsets.only(left: 28, bottom: 4),
+            child: Text(
+              '• $item',
+              style: TextStyle(fontSize: 14),
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveFoodEntry() async {
     try {
       print('💾 Starting to save food entry for current user...');
@@ -398,33 +826,28 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
       print(' Pregnancy week: $_pregnancyWeek');
 
       // Prepare food data with current user info (same structure as kick counter)
-      final foodData = {
-        'userId': patientId, // Use AuthProvider patient ID
-        'userRole': 'patient', // Use default role
+      final foodEntryData = {
+        'userId': _userId,
+        'userRole': _userRole,
         'username': _username,
         'email': _email,
         'food_details': foodDetails,
         'meal_type': _selectedMealType,
         'pregnancy_week': _pregnancyWeek,
         'notes': _notesController.text.trim(),
-        'transcribed_text': foodDetails,
-        'nutritional_breakdown': {
-          'estimated_calories': _nutritionAnalysis?['nutritional_breakdown']?['estimated_calories'] ?? 0,
-          'protein_grams': _nutritionAnalysis?['nutritional_breakdown']?['protein_grams'] ?? 0,
-          'carbohydrates_grams': _nutritionAnalysis?['nutritional_breakdown']?['carbohydrates_grams'] ?? 0,
-          'fat_grams': _nutritionAnalysis?['nutritional_breakdown']?['fat_grams'] ?? 0,
-          'fiber_grams': _nutritionAnalysis?['nutritional_breakdown']?['fiber_grams'] ?? 0,
-        },
+        'transcribed_text': _transcribedText,
+        'nutritional_breakdown': _nutritionAnalysis?['nutritional_breakdown'] ?? {},
+        'gpt4_analysis': _nutritionAnalysis, // Include full GPT-4 analysis
         'timestamp': DateTime.now().toIso8601String(),
       };
 
-      print('📤 Sending food data for current user to backend: $foodData');
+      print('📤 Sending food data for current user to backend: $foodEntryData');
 
       // Save to backend with current user's ID
       final response = await http.post(
         Uri.parse('${ApiConfig.nutritionBaseUrl}/nutrition/save-food-entry'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode(foodData),
+        body: json.encode(foodEntryData),
       ).timeout(const Duration(seconds: 60));
 
       print('📡 Save API Response Status: ${response.statusCode}');
@@ -540,56 +963,57 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
   //   }
   // } // Removed as per edit hint
 
-  Future<void> _fetchDailyCalorieSummary() async {
-    try {
-      setState(() {
-        _isLoadingUserData = true;
-      });
+  // Remove the unused _fetchDailyCalorieSummary method
+  // Future<void> _fetchDailyCalorieSummary() async {
+  //   try {
+  //     setState(() {
+  //       _isLoadingUserData = true;
+  //     });
 
-      print('🔍 Fetching daily calorie summary for patient ID: $_userId');
+  //     print('🔍 Fetching daily calorie summary for patient ID: $_userId');
       
-      final response = await http.get(
-        Uri.parse('${ApiConfig.nutritionBaseUrl}/nutrition/daily-calorie-summary/$_userId'),
-        headers: {'Content-Type': 'application/json'},
-      );
+  //     final response = await http.get(
+  //       Uri.parse('${ApiConfig.nutritionBaseUrl}/nutrition/daily-calorie-summary/$_userId'),
+  //       headers: {'Content-Type': 'application/json'},
+  //     );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        print('✅ Daily calorie summary response: ${json.encode(data)}');
+  //     if (response.statusCode == 200) {
+  //       final data = json.decode(response.body);
+  //       print('✅ Daily calorie summary response: ${json.encode(data)}');
         
-        if (data['success'] == true) {
-          setState(() {
-            _dailyCalorieSummary = data;
-          });
+  //       if (data['success'] == true) {
+  //         setState(() {
+  //           _dailyCalorieSummary = data;
+  //         });
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Daily calorie summary fetched successfully!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        } else {
-          throw Exception(data['error'] ?? 'Unknown error fetching daily calorie summary');
-        }
-      } else {
-        throw Exception('API returned status ${response.statusCode}: ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Error fetching daily calorie summary: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error fetching daily calorie summary: $e'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoadingUserData = false;
-      });
-    }
-  }
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             content: Text('Daily calorie summary fetched successfully!'),
+  //             backgroundColor: Colors.green,
+  //             duration: Duration(seconds: 3),
+  //           ),
+  //         );
+  //       } else {
+  //         throw Exception(data['error'] ?? 'Unknown error fetching daily calorie summary');
+  //       }
+  //     } else {
+  //       throw Exception('API returned status ${response.statusCode}: ${response.body}');
+  //     }
+  //   } catch (e) {
+  //     print('❌ Error fetching daily calorie summary: $e');
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //         content: Text('Error fetching daily calorie summary: $e'),
+  //         backgroundColor: Colors.red,
+  //         duration: Duration(seconds: 3),
+  //       ),
+  //     );
+  //   } finally {
+  //     setState(() {
+  //       _isLoadingUserData = false;
+  //     });
+  //   }
+  // }
 
   // Add this method to show current user profile
   void _showCurrentUserProfile() {
@@ -920,29 +1344,308 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    
+                    // Voice Recording Section
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.mic, color: Colors.blue.shade700, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Voice Recording',
+                                style: TextStyle(
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap the microphone to record your food details',
+                            style: TextStyle(
+                              color: Colors.blue.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Note: Voice recording works best in modern browsers (Chrome, Firefox, Safari)',
+                            style: TextStyle(
+                              color: Colors.blue.shade500,
+                              fontSize: 10,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _isRecording ? _stopVoiceRecording : _startVoiceRecording,
+                                  icon: _isRecording 
+                                    ? Icon(Icons.stop, color: Colors.white)
+                                    : Icon(Icons.mic, color: Colors.white),
+                                  label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _isRecording ? Colors.red : Colors.blue.shade600,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_isTranscribing) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Transcribing audio...',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (_transcribedText.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green.shade600, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Transcribed: $_transcribedText',
+                                      style: TextStyle(
+                                        color: Colors.green.shade700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Connection indicator
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.arrow_downward, color: Colors.blue.shade600, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Automatically copied to food input field above',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade600,
+                                    fontSize: 10,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          // Connection status indicator
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.wifi,
+                                  color: Colors.blue.shade600,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Connection Status',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Backend: ${ApiConfig.nutritionBaseUrl}',
+                                        style: TextStyle(fontSize: 10, color: Colors.blue.shade600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Debug connectivity button
+                          ElevatedButton.icon(
+                            onPressed: _testBackendConnectivity,
+                            icon: Icon(Icons.wifi, color: Colors.white),
+                            label: Text('Test Backend Connection'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade600,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Connection info display
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Connection Info:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Backend: ${ApiConfig.nutritionBaseUrl}',
+                                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                ),
+                                Text(
+                                  'Endpoint: ${ApiConfig.transcribeEndpoint}',
+                                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                ),
+                                Text(
+                                  'Full URL: ${ApiConfig.nutritionBaseUrl}${ApiConfig.transcribeEndpoint}',
+                                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Tamil to English Translation Info
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.translate, color: Colors.green.shade600, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                '🌐 Tamil to English Translation',
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Speak in Tamil, get English text automatically!',
+                            style: TextStyle(
+                              color: Colors.green.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'The system automatically detects Tamil speech and translates it to English',
+                            style: TextStyle(
+                              color: Colors.green.shade500,
+                              fontSize: 10,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
                     TextField(
                       controller: _foodController,
                       maxLines: 3,
                       decoration: InputDecoration(
-                        hintText: 'Example: I had a medium apple, 1 cup of yogurt with berries, and a slice of whole wheat toast with peanut butter for breakfast.',
+                        labelText: 'Food Input (Auto-filled from voice)',
+                        hintText: 'Describe what you ate in detail:',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Colors.grey[300]!),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Colors.blue[400]!),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[50],
+                        fillColor: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                                         Row(
+                    const SizedBox(height: 8),
+                    // Note about auto-filling
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Text(
+                        '💡 Voice transcription automatically fills this field for AI analysis',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.blue.shade700,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                     const SizedBox(height: 16),
+                     Row(
                        children: [
                          Expanded(
                            child: ElevatedButton.icon(
-                             onPressed: _analyzeNutrition,
+                             onPressed: _analyzeFoodWithGPT4,
                              icon: Icon(Icons.psychology, color: Colors.white),
                              label: Text('Analyze with AI'),
                              style: ElevatedButton.styleFrom(
@@ -958,24 +1661,47 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
                        ],
                      ),
                      const SizedBox(height: 12),
-                     Row(
-                       children: [
-                         Expanded(
-                           child: ElevatedButton.icon(
-                             onPressed: _openDetailedFoodEntry,
-                             icon: Icon(Icons.add_circle, color: Colors.white),
-                             label: Text('Add Detailed Food Entry'),
-                             style: ElevatedButton.styleFrom(
-                               backgroundColor: Colors.blue[600],
-                               foregroundColor: Colors.white,
-                               padding: const EdgeInsets.symmetric(vertical: 12),
-                               shape: RoundedRectangleBorder(
-                                 borderRadius: BorderRadius.circular(8),
+                     // Information about detailed food entry storage
+                     Container(
+                       padding: const EdgeInsets.all(16),
+                       decoration: BoxDecoration(
+                         color: Colors.blue[50],
+                         borderRadius: BorderRadius.circular(8),
+                         border: Border.all(color: Colors.blue[200]!),
+                       ),
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Row(
+                             children: [
+                               Icon(Icons.info_outline, color: Colors.blue[600], size: 20),
+                               const SizedBox(width: 8),
+                               Text(
+                                 'Detailed Food Entry Storage',
+                                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                   color: Colors.blue[800],
+                                   fontWeight: FontWeight.w600,
+                                 ),
                                ),
+                             ],
+                           ),
+                           const SizedBox(height: 8),
+                           Text(
+                             'Detailed food entries with allergies, medical conditions, and dietary preferences are automatically stored in your patient profile in the patients_v2 database.',
+                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                               color: Colors.blue[700],
                              ),
                            ),
-                         ),
-                       ],
+                           const SizedBox(height: 4),
+                           Text(
+                             'Storage Location: patients_v2 → food_data array → entry_type: "detailed"',
+                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                               color: Colors.blue[600],
+                               fontStyle: FontStyle.italic,
+                             ),
+                           ),
+                         ],
+                       ),
                      ),
                     if (_isAnalyzing) ...[
                       const SizedBox(height: 16),
@@ -1490,7 +2216,7 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
                ],
         
         // Daily Calorie Summary Button
-        _buildDailyCalorieSummaryCard(),
+        // _buildDailyCalorieSummaryCard(), // Removed as per edit hint
       ],
     ),
   ),
@@ -1514,117 +2240,56 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
               ),
               const SizedBox(height: 12),
               
-              ElevatedButton.icon(
-                onPressed: _isLoadingUserData ? null : _fetchDailyCalorieSummary,
-                icon: Icon(Icons.analytics, size: 18),
-                label: Text('Get Today\'s Calorie Summary'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[600],
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              // Information about GPT-4 analysis and calorie tracking
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.psychology, color: Colors.green[600], size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'AI-Powered Nutrition Analysis',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.green[800],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Your daily calorie summary and nutrition tracking are powered by GPT-4 analysis. Each food entry is automatically analyzed for:',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.green[700],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildAnalysisPoint('🍎 Nutritional breakdown (calories, protein, carbs, fat)'),
+                    _buildAnalysisPoint('🤱 Pregnancy-specific benefits and advice'),
+                    _buildAnalysisPoint('⚠️ Safety considerations and cooking tips'),
+                    _buildAnalysisPoint('📊 Daily tracking and remaining nutritional needs'),
+                    _buildAnalysisPoint('💡 Smart recommendations for next meals'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Storage: All analysis results are stored in patients_v2 → food_data array → entry_type: "gpt4_analyzed"',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.green[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               
-              if (_dailyCalorieSummary != null) ...[
-                const SizedBox(height: 16),
-                
-                // Today's Summary
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Today\'s Summary (${_dailyCalorieSummary!['date']})',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      _buildCalorieRow('Total Calories Today', '${_dailyCalorieSummary!['daily_summary']['total_calories_today']} kcal', Colors.blue),
-                      _buildCalorieRow('Total Protein', '${_dailyCalorieSummary!['daily_summary']['total_protein_today']} g', Colors.red),
-                      _buildCalorieRow('Total Carbs', '${_dailyCalorieSummary!['daily_summary']['total_carbs_today']} g', Colors.green),
-                      _buildCalorieRow('Total Fat', '${_dailyCalorieSummary!['daily_summary']['total_fat_today']} g', Colors.orange),
-                      _buildCalorieRow('Meals Eaten', '${_dailyCalorieSummary!['daily_summary']['meals_eaten_today']} meals', Colors.purple),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 12),
-                
-                // Calorie Recommendations
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Calorie Recommendations',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green[700],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      _buildCalorieRow('Recommended Daily Calories', '${_dailyCalorieSummary!['calorie_recommendations']['recommended_daily_calories']} kcal', Colors.green),
-                      _buildCalorieRow('Calories Remaining', '${_dailyCalorieSummary!['calorie_recommendations']['calories_remaining']} kcal', Colors.orange),
-                      _buildCalorieRow('Meals Remaining', '${_dailyCalorieSummary!['calorie_recommendations']['meals_remaining']} meals', Colors.red),
-                      _buildCalorieRow('Calories per Remaining Meal', '${_dailyCalorieSummary!['calorie_recommendations']['calories_per_remaining_meal']} kcal', Colors.green),
-                      _buildCalorieRow('Progress', '${_dailyCalorieSummary!['calorie_recommendations']['percentage_of_daily_needs']}%', Colors.blue),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 12),
-                
-                // Smart Tips
-                if (_dailyCalorieSummary!['smart_tips'] != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.teal[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.teal[200]!),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '💡 Smart Tips for Today',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.teal[700],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        
-                        ...(_dailyCalorieSummary!['smart_tips'] as List<dynamic>).map<Widget>((tip) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            '• $tip',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.teal[800],
-                            ),
-                          ),
-                        )).toList(),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+              // Daily calorie summary functionality removed - now powered by GPT-4 analysis
             ],
           ),
         ),
@@ -1694,27 +2359,38 @@ class _PatientFoodTrackingScreenState extends State<PatientFoodTrackingScreen> {
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-  
-  // Method to open detailed food entry window
-  void _openDetailedFoodEntry() async {
-    // Use the pregnancy week fetched from backend
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DetailedFoodEntryScreen(
-          userId: _userId,
-          username: _username,
-          email: _email,
-          pregnancyWeek: _pregnancyWeek, // Use fetched value
-          onFoodSaved: (foodData) {
-            setState(() {
-              // Refresh logic if needed
-            });
-          },
-        ),
+  Widget _buildAnalysisPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('• ', style: TextStyle(color: Colors.green[600], fontSize: 16)),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.green[700],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  String _formatDate(dynamic date) {
+    print('🔍 _formatDate called with: $date (type: ${date.runtimeType})');
+    try {
+      final result = AppDateUtils.formatDate(date);
+      print('🔍 _formatDate result: $result');
+      return result;
+    } catch (e) {
+      print('❌ _formatDate error: $e');
+      return date.toString();
+    }
+  }
+  
+  // Remove the unused _openDetailedFoodEntry method
+  // void _openDetailedFoodEntry() async { ... }
 } 

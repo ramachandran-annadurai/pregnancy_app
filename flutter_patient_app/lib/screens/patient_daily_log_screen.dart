@@ -54,17 +54,17 @@ class _PatientDailyLogScreenState extends State<PatientDailyLogScreen> {
     switch (category) {
       case 'food':
         Navigator.pushNamed(context, '/patient-food-tracking', arguments: {
-          'date': _selectedDate,
+          'date': "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
         });
         break;
       case 'medication':
         Navigator.pushNamed(context, '/patient-medication-tracking', arguments: {
-          'date': _selectedDate,
+          'date': "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
         });
         break;
       case 'symptoms':
         Navigator.pushNamed(context, '/patient-symptoms-tracking', arguments: {
-          'date': _selectedDate,
+          'date': "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
         });
         break;
       case 'sleep':
@@ -86,8 +86,8 @@ class _PatientDailyLogScreenState extends State<PatientDailyLogScreen> {
         });
         break;
       case 'mental_health':
-        Navigator.pushNamed(context, '/patient-mental-health-tracking', arguments: {
-          'date': _selectedDate,
+        Navigator.pushNamed(context, '/mental-health', arguments: {
+          'selectedDate': "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
         });
         break;
       case 'kick_count':

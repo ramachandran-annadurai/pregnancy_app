@@ -8,14 +8,13 @@ import 'screens/patient_daily_log_screen.dart';
 import 'screens/patient_food_tracking_screen.dart';
 import 'screens/patient_sleep_log_screen.dart';
 import 'screens/patient_profile_screen.dart';
+import 'screens/patient_symptoms_tracking_screen.dart';
+import 'screens/patient_medication_tracking_screen.dart';
+import 'screens/medication_dosage_list_screen.dart';
+import 'screens/patient_daily_tracking_details_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/doctor_dashboard_screen.dart';
-import 'screens/doctor_daily_log_screen.dart';
-import 'screens/doctor_food_tracking_screen.dart';
-import 'screens/doctor_profile_screen.dart';
-import 'screens/doctor_profile_completion_screen.dart';
-import 'screens/doctor_forgot_password_screen.dart';
-import 'screens/doctor_reset_password_screen.dart';
+import 'screens/mental_health_screen.dart';
+
 import 'screens/forgot_password_screen.dart';
 import 'screens/otp_verification_screen.dart';
 import 'screens/reset_password_screen.dart';
@@ -110,21 +109,25 @@ class PatientAlertApp extends StatelessWidget {
             username: (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>)['username'],
             email: (ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>)['email'],
           ),
-          '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
-          '/doctor-daily-log': (context) => const DoctorDailyLogScreen(),
-          '/doctor-food-tracking': (context) {
-            final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-            return DoctorFoodTrackingScreen(
-              patientId: args['patientId'],
+          '/patient-symptoms-tracking': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>;
+            return PatientSymptomsTrackingScreen(
               date: args['date'],
             );
           },
-          '/doctor-profile': (context) => const DoctorProfileScreen(),
-          '/doctor-profile-completion': (context) => const DoctorProfileCompletionScreen(),
-          '/doctor-forgot-password': (context) => const DoctorForgotPasswordScreen(),
-          '/doctor-reset-password': (context) {
-            final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-            return DoctorResetPasswordScreen(email: args['email']);
+          '/patient-medication-tracking': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>;
+            return PatientMedicationTrackingScreen(
+              date: args['date'],
+            );
+          },
+          '/medication-dosage-list': (context) => const MedicationDosageListScreen(),
+          '/patient-daily-tracking-details': (context) => const PatientDailyTrackingDetailsScreen(),
+          '/mental-health': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+            return MentalHealthScreen(
+              selectedDate: args?['selectedDate'],
+            );
           },
           '/profile': (context) => const ProfileScreen(),
           '/forgot-password': (context) => const ForgotPasswordScreen(),

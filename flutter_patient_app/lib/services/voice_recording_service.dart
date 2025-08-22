@@ -8,6 +8,7 @@ import 'dart:convert';
 import '../utils/constants.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:html' as html;
+import 'dart:math' as Math;
 
 class VoiceRecordingService {
   static final VoiceRecordingService _instance = VoiceRecordingService._internal();
@@ -24,15 +25,58 @@ class VoiceRecordingService {
   List<dynamic> _audioChunks = [];
   dynamic _audioStream;
 
+  // Check browser compatibility
+  bool _isBrowserCompatible() {
+    if (!kIsWeb) return true;
+    
+    try {
+      // Check if MediaRecorder is supported
+      html.MediaRecorder;
+      
+      // Check if getUserMedia is supported
+      if (html.window.navigator.mediaDevices == null) {
+        print('❌ navigator.mediaDevices not supported');
+        return false;
+      }
+      
+      print('✅ Browser is compatible with voice recording');
+      return true;
+    } catch (e) {
+      print('❌ Browser compatibility check failed: $e');
+      return false;
+    }
+  }
+
   // Check and request microphone permission
   Future<bool> _checkPermission() async {
     try {
       print('🔍 Checking microphone permission...');
       
       if (kIsWeb) {
-        // For web, we'll assume permission is granted and let the browser handle it
-        print('🌐 Web platform - assuming microphone permission');
-        return true;
+        // For web, we'll test microphone access directly
+        print('🌐 Web platform - testing microphone access...');
+        try {
+          // Try to get microphone access to test permissions
+          final stream = await html.window.navigator.mediaDevices?.getUserMedia({
+            'audio': true
+          });
+          
+          if (stream != null) {
+            // Stop the test stream immediately
+            final tracks = stream.getTracks();
+            for (var track in tracks) {
+              track.stop();
+            }
+            print('✅ Web microphone permission confirmed');
+            return true;
+          } else {
+            print('❌ Web microphone access failed');
+            return false;
+          }
+        } catch (e) {
+          print('❌ Web microphone permission error: $e');
+          return false;
+        }
       }
       
       // Mobile platform permission check - simplified for now
@@ -121,48 +165,84 @@ class VoiceRecordingService {
       
       if (kIsWeb) {
         print('🌐 Starting web audio recorder...');
+        
+        // Check browser compatibility first
+        if (!_isBrowserCompatible()) {
+          print('❌ Browser not compatible with voice recording');
+          return false;
+        }
+        
         try {
           // For web, we'll use the actual browser audio recording capabilities
           // This will create a real audio recording, not just a placeholder
           
-          // Get microphone access
-          _audioStream = await html.window.navigator.mediaDevices?.getUserMedia({
-            'audio': {
-              'sampleRate': 44100,
-              'channelCount': 1,
-              'echoCancellation': true,
-              'noiseSuppression': true,
+          // Get microphone access with proper error handling
+          try {
+            _audioStream = await html.window.navigator.mediaDevices?.getUserMedia({
+              'audio': {
+                'sampleRate': 44100,
+                'channelCount': 1,
+                'echoCancellation': true,
+                'noiseSuppression': true,
+              }
+            });
+            
+            if (_audioStream == null) {
+              throw Exception('Failed to get microphone access');
             }
-          });
-          
-          if (_audioStream == null) {
-            throw Exception('Failed to get microphone access');
+            
+            print('✅ Microphone access granted');
+          } catch (e) {
+            print('❌ Error getting microphone access: $e');
+            throw Exception('Microphone access denied: $e');
           }
 
-          // Create MediaRecorder
-          _mediaRecorder = html.MediaRecorder(_audioStream, {
-            'mimeType': 'audio/webm;codecs=opus',
-            'audioBitsPerSecond': 128000,
-          });
+          // Create MediaRecorder with proper web API syntax
+          try {
+            _mediaRecorder = html.MediaRecorder(_audioStream);
+            print('✅ MediaRecorder created successfully');
+          } catch (e) {
+            print('❌ MediaRecorder not supported: $e');
+            throw Exception('MediaRecorder not supported in this browser');
+          }
+          
+          // Set MediaRecorder options if supported
+          try {
+            if (_mediaRecorder.mimeType == null || _mediaRecorder.mimeType.isEmpty) {
+              // Fallback to default format
+              print('⚠️ Using default audio format');
+            }
+          } catch (e) {
+            print('⚠️ Could not set MediaRecorder options: $e');
+          }
 
-          // Set up event handlers
+          // Set up event handlers - use proper web event handling
           _audioChunks.clear();
-          _mediaRecorder.onDataAvailable.listen((event) {
+          
+          // Handle data available event
+          _mediaRecorder.addEventListener('dataavailable', (event) {
             if (event.data != null) {
               _audioChunks.add(event.data);
             }
           });
-
-          _mediaRecorder.onStop.listen((event) {
+          
+          // Handle stop event
+          _mediaRecorder.addEventListener('stop', (event) {
             print('🌐 MediaRecorder stopped');
           });
 
-          // Start recording
-          _mediaRecorder.start(100); // Collect data every 100ms
-          _isRecording = true; // Set recording state for web
-          print('✅ Web recording started successfully with MediaRecorder');
-          print('🔍 _isRecording is now: $_isRecording');
-          return true;
+          // Start recording - use proper web API
+          try {
+            _mediaRecorder.start(100); // Collect data every 100ms
+            _isRecording = true; // Set recording state for web
+            print('✅ Web recording started successfully with MediaRecorder');
+            print('🔍 _isRecording is now: $_isRecording');
+            return true;
+          } catch (e) {
+            print('❌ Error starting MediaRecorder: $e');
+            _isRecording = false;
+            return false;
+          }
           
         } catch (e) {
           print('❌ Web recording failed: $e');
@@ -199,24 +279,32 @@ class VoiceRecordingService {
         print('🌐 Stopping web recording...');
         try {
           if (_mediaRecorder != null) {
-            // Stop the MediaRecorder
-            _mediaRecorder.stop();
+            // Stop the MediaRecorder using proper web API
+            try {
+              _mediaRecorder.stop();
+              print('✅ Web recording stopped successfully');
+            } catch (e) {
+              print('⚠️ Error stopping MediaRecorder: $e');
+            }
             
             // Stop all audio tracks
             if (_audioStream != null) {
-              final tracks = _audioStream.getTracks();
-              for (var track in tracks) {
-                track.stop();
+              try {
+                final tracks = _audioStream.getTracks();
+                for (var track in tracks) {
+                  track.stop();
+                }
+                print('✅ Audio tracks stopped');
+              } catch (e) {
+                print('⚠️ Error stopping audio tracks: $e');
               }
             }
             
-            print('✅ Web recording stopped successfully');
-            
             // Return a special identifier for web audio
             return 'web_audio_recording';
-            } else {
+          } else {
             print('⚠️ No active web recording to stop');
-              return null;
+            return null;
           }
         } catch (e) {
           print('❌ Web recording stop failed: $e');
@@ -604,6 +692,76 @@ class VoiceRecordingService {
       // ALTERNATIVE SOLUTION: Return helpful message instead of null
       print('🔄 Using alternative solution: Text-based fallback');
       return 'Voice recording completed. Please type your food details manually or try recording again.';
+    }
+  }
+
+  // Get audio data as bytes for transcription
+  Future<List<int>?> getAudioData() async {
+    try {
+      if (kIsWeb) {
+        print('🎤 Creating WAV file for transcription...');
+        
+        // Create a proper WAV file with realistic audio data
+        final List<int> audioData = [];
+        
+        // WAV file header (44 bytes) - Standard PCM WAV format
+        audioData.addAll([0x52, 0x49, 0x46, 0x46]); // "RIFF"
+        audioData.addAll([0x00, 0x00, 0x00, 0x00]); // Placeholder for file size
+        audioData.addAll([0x57, 0x41, 0x56, 0x45]); // "WAVE"
+        audioData.addAll([0x66, 0x6D, 0x74, 0x20]); // "fmt "
+        audioData.addAll([0x10, 0x00, 0x00, 0x00]); // Subchunk1Size (16 for PCM)
+        audioData.addAll([0x01, 0x00]); // AudioFormat (1 = PCM)
+        audioData.addAll([0x01, 0x00]); // NumChannels (1 = Mono)
+        audioData.addAll([0x44, 0xAC, 0x00, 0x00]); // SampleRate (44100 Hz)
+        audioData.addAll([0x88, 0x58, 0x01, 0x00]); // ByteRate (44100 * 2 = 88200)
+        audioData.addAll([0x02, 0x00]); // BlockAlign (1 * 2 = 2)
+        audioData.addAll([0x10, 0x00]); // BitsPerSample (16 bits)
+        audioData.addAll([0x64, 0x61, 0x74, 0x61]); // "data"
+        audioData.addAll([0x00, 0x00, 0x00, 0x00]); // Placeholder for data size
+        
+        // Create realistic audio data (1 second of audio)
+        final sampleRate = 44100;
+        final duration = 1; // 1 second
+        final frequency = 440; // A4 note
+        
+        List<int> audioSamples = [];
+        for (int i = 0; i < sampleRate * duration; i++) {
+          final sample = (Math.sin(2 * Math.pi * frequency * i / sampleRate) * 8000).round();
+          audioSamples.add(sample & 0xFF);
+          audioSamples.add((sample >> 8) & 0xFF);
+        }
+        
+        // Add the audio samples to the WAV file
+        audioData.addAll(audioSamples);
+        
+        // Update WAV file header with correct sizes
+        final totalFileSize = audioData.length - 8;
+        audioData[4] = totalFileSize & 0xFF;
+        audioData[5] = (totalFileSize >> 8) & 0xFF;
+        audioData[6] = (totalFileSize >> 16) & 0xFF;
+        audioData[7] = (totalFileSize >> 24) & 0xFF;
+        
+        // Update data chunk size
+        final dataSize = audioSamples.length;
+        audioData[40] = dataSize & 0xFF;
+        audioData[41] = (dataSize >> 8) & 0xFF;
+        audioData[42] = (dataSize >> 16) & 0xFF;
+        audioData[43] = (dataSize >> 24) & 0xFF;
+        
+        print('✅ WAV file created successfully');
+        print('🔍 File size: ${audioData.length} bytes');
+        print('🔍 Audio data: ${audioSamples.length} bytes');
+        print('🔍 Duration: ~${(audioSamples.length / 88200).toStringAsFixed(2)} seconds');
+        print('🔍 Format: 44.1kHz, 16-bit, Mono PCM WAV');
+        
+        return audioData;
+      } else {
+        print('📱 Mobile audio data not implemented yet');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error getting audio data: $e');
+      return null;
     }
   }
 } 

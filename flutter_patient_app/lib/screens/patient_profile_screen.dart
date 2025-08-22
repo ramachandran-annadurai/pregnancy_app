@@ -643,8 +643,25 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
     try {
       // Try to parse the date if it's a string
       if (dateValue is String) {
-        final date = DateTime.parse(dateValue);
-        return '${date.day}/${date.month}/${date.year}';
+        // Check if it's already in DD/MM/YYYY format
+        if (dateValue.contains('/') && dateValue.split('/').length == 3) {
+          final parts = dateValue.split('/');
+          if (parts.length == 3) {
+            final day = int.parse(parts[0]);
+            final month = int.parse(parts[1]);
+            final year = int.parse(parts[2]);
+            return '${day.toString().padLeft(2, '0')}/${month.toString().padLeft(2, '0')}/${year}';
+          }
+        }
+        
+        // Try to parse as ISO format
+        try {
+          final date = DateTime.parse(dateValue);
+          return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+        } catch (e) {
+          // If ISO parsing fails, return the original string
+          return dateValue;
+        }
       }
       return dateValue.toString();
     } catch (e) {

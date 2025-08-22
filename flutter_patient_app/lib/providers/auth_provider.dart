@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
-import '../services/doctor_api_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -92,22 +91,9 @@ class AuthProvider extends ChangeNotifier {
     _role = prefs.getString('role');
     
     if (_token != null) {
-      // Verify token with appropriate server based on role
-      Map<String, dynamic> response;
-      
-      if (_role == 'doctor') {
-        // For doctors, we'll skip token verification for now
-        // In production, implement proper token verification
-        _isLoggedIn = true;
-        _patientId = prefs.getString('patientId');
-        _email = prefs.getString('email');
-        _username = prefs.getString('username');
-        
-        // Set token in Doctor API service
-        DoctorApiService.setAuthToken(_token!);
-      } else {
-        // Verify token with patient server
-        response = await _apiService.verifyToken(token: _token!);
+      // Verify token with patient server
+      try {
+        final response = await _apiService.verifyToken(token: _token!);
         
         if (response.containsKey('valid') && response['valid'] == true) {
           _isLoggedIn = true;
@@ -121,6 +107,9 @@ class AuthProvider extends ChangeNotifier {
           // Token is invalid, clear everything
           await logout();
         }
+      } catch (e) {
+        print('❌ Token verification failed: $e');
+        await logout();
       }
     } else {
       _isLoggedIn = false;
@@ -140,23 +129,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      Map<String, dynamic> response;
-      
-      if (role == 'doctor') {
-        // Use DoctorApiService for doctor login
-        response = await DoctorApiService().login(
-          loginIdentifier: loginIdentifier,
-          password: password,
-          role: role,
-        );
-      } else {
-        // Use regular ApiService for patient login
-        response = await _apiService.login(
-          loginIdentifier: loginIdentifier,
-          password: password,
-          role: role,
-        );
-      }
+      // Use regular ApiService for patient login
+      final response = await _apiService.login(
+        loginIdentifier: loginIdentifier,
+        password: password,
+        role: role,
+      );
 
       if (response.containsKey('error')) {
         _error = response['error'];
@@ -165,9 +143,9 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      if (response['patient_id'] != null || response['doctor_id'] != null) {
+      if (response['patient_id'] != null) {
         _isLoggedIn = true;
-        _patientId = response['patient_id'] ?? response['doctor_id'] ?? "";
+        _patientId = response['patient_id'] ?? "";
         _email = response['email'] ?? "";
         _username = response['username'] ?? "";
         _token = response['token'] ?? "";
@@ -209,18 +187,14 @@ class AuthProvider extends ChangeNotifier {
         print('  role: $_role');
         print('  objectId: $_objectId');
 
-        // Set token in appropriate API service
-        if (role == 'doctor') {
-          DoctorApiService.setAuthToken(_token!);
-        } else {
-          ApiService.setAuthToken(_token!);
-        }
+        // Set token in API service
+        ApiService.setAuthToken(_token!);
 
         _isLoading = false;
         notifyListeners();
         return true;
       } else {
-        _error = 'Login failed - missing patient_id or doctor_id';
+        _error = 'Login failed - missing patient_id';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -245,26 +219,14 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      Map<String, dynamic> response;
-      
-      if (role == 'doctor') {
-        // Use DoctorApiService for doctor signup (sends OTP)
-        response = await DoctorApiService().sendSignupOtp(
-          username: username,
-          email: email,
-          mobile: mobile,
-          password: password,
-        );
-      } else {
-        // Use regular ApiService for patient signup
-        response = await _apiService.signup(
-          username: username,
-          email: email,
-          mobile: mobile,
-          password: password,
-          role: role,
-        );
-      }
+      // Use regular ApiService for patient signup
+      final response = await _apiService.signup(
+        username: username,
+        email: email,
+        mobile: mobile,
+        password: password,
+        role: role,
+      );
 
       if (response.containsKey('error')) {
         _error = response['error'];
@@ -295,23 +257,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      Map<String, dynamic> response;
-      
-      if (role == 'doctor') {
-        // Use DoctorApiService for doctor OTP verification
-        response = await DoctorApiService().verifyOtp(
-          email: email,
-          otp: otp,
-          role: role,
-        );
-      } else {
-        // Use regular ApiService for patient OTP verification
-        response = await _apiService.verifyOtp(
-          email: email,
-          otp: otp,
-          role: role,
-        );
-      }
+      // Use regular ApiService for patient OTP verification
+      final response = await _apiService.verifyOtp(
+        email: email,
+        otp: otp,
+        role: role,
+      );
 
       if (response.containsKey('error')) {
         _error = response['error'];
@@ -320,9 +271,9 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      if (response['patient_id'] != null || response['doctor_id'] != null) {
+      if (response['patient_id'] != null) {
         _isLoggedIn = true;
-        _patientId = response['patient_id'] ?? response['doctor_id'];
+        _patientId = response['patient_id'];
         _email = response['email'];
         _username = response['username'];
         _token = response['token'];
@@ -338,12 +289,8 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setString('role', _role!);
         await prefs.setString('objectId', _objectId!); // Save Object ID
 
-        // Set token in appropriate API service
-        if (role == 'doctor') {
-          DoctorApiService.setAuthToken(_token!);
-        } else {
-          ApiService.setAuthToken(_token!);
-        }
+        // Set token in API service
+        ApiService.setAuthToken(_token!);
 
         _isLoading = false;
         notifyListeners();
@@ -426,59 +373,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> completeDoctorProfile({
-    required String firstName,
-    required String lastName,
-    required String qualification,
-    required String specialization,
-    required String workingHospital,
-    required String doctorId,
-    required String licenseNumber,
-    required String phone,
-    required String address,
-    required String city,
-    required String state,
-    required String zipCode,
-    required String experienceYears,
-  }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
 
-    try {
-      final response = await DoctorApiService().completeDoctorProfile(
-        firstName: firstName,
-        lastName: lastName,
-        qualification: qualification,
-        specialization: specialization,
-        workingHospital: workingHospital,
-        doctorId: doctorId,
-        licenseNumber: licenseNumber,
-        phone: phone,
-        address: address,
-        city: city,
-        state: state,
-        zipCode: zipCode,
-        experienceYears: experienceYears,
-      );
-
-      if (response.containsKey('error')) {
-        _error = response['error'];
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = 'Network error: $e';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
 
   Future<void> logout() async {
     _isLoggedIn = false;
@@ -494,9 +389,8 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
-    // Clear token from both API services
+    // Clear token from API service
     ApiService.clearAuthToken();
-    DoctorApiService.clearAuthToken();
 
     notifyListeners();
   }

@@ -1,0 +1,36 @@
+{
+  "53ae2327-fd7f-4b04-9352-6c312c047784": {
+    "id": "53ae2327-fd7f-4b04-9352-6c312c047784",
+    "name": "Default n8n Webhook",
+    "url": "https://n8n.srv795087.hstgr.cloud/webhook/bf25c478-c4a9-44c5-8f43-08c3fcae51f9",
+    "enabled": true,
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "timeout": 30,
+    "retry_attempts": 3,
+    "retry_delay": 1,
+    "payload_template": {},
+    "filters": {},
+    "created_at": "2025-08-21 09:47:14.233648",
+    "updated_at": "2025-08-21 09:47:14.233654"
+  },
+  "3335973d-8333-493b-a481-e616009348e5": {
+    "id": "3335973d-8333-493b-a481-e616009348e5",
+    "name": "N8N Prescription Processor",
+    "url": "https://n8n.srv795087.hstgr.cloud/webhook/bf25c478-c4a9-44c5-8f43-08c3fcae51f9",
+    "enabled": true,
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "timeout": 30,
+    "retry_attempts": 3,
+    "retry_delay": 2,
+    "payload_template": {},
+    "filters": {},
+    "created_at": "2025-08-21 09:47:14.245542",
+    "updated_at": "2025-08-21 09:47:14.245546"
+  }
+}

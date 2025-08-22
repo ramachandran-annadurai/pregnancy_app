@@ -146,12 +146,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
-              
+              const SizedBox(height: 16),
+
               // Extra space at bottom to prevent overflow
               const SizedBox(height: 20),
             ],
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.pushNamed(context, '/medication-dosage-list');
+        },
+        icon: const Icon(Icons.schedule),
+        label: const Text('Medication Schedule'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
       ),
     );
   }

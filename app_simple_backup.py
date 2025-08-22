@@ -4361,6 +4361,689 @@ def search_knowledge():
             'message': f'Error: {str(e)}'
         }), 500
 
+@app.route('/nutrition/pregnancy-info/<patient_id>', methods=['GET'])
+def get_pregnancy_info(patient_id):
+    """Get pregnancy information for a patient"""
+    try:
+        if db.patients_collection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Database not available'
+            }), 500
+        
+        # Find patient by patient_id
+        patient = db.patients_collection.find_one({"patient_id": patient_id})
+        if not patient:
+            return jsonify({
+                'success': False,
+                'message': f'Patient not found with ID: {patient_id}'
+            }), 404
+        
+        # Extract pregnancy information from DIRECT fields (not health_data)
+        is_pregnant = patient.get('is_pregnant', False)
+        pregnancy_week = patient.get('pregnancy_week', 1)
+        last_period_date = patient.get('last_period_date')
+        expected_delivery_date = patient.get('expected_delivery_date')
+        
+        print(f"🤱 Patient pregnancy status: {is_pregnant}")
+        print(f" Pregnancy week: {pregnancy_week}")
+        
+        if is_pregnant:
+            # Determine trimester based on pregnancy week
+            if pregnancy_week <= 12:
+                trimester = "First Trimester"
+            elif pregnancy_week <= 26:
+                trimester = "Second Trimester"
+            else:
+                trimester = "Third Trimester"
+            
+            pregnancy_info = {
+                'current_week': pregnancy_week,
+                'trimester': trimester,
+                'expected_delivery_date': expected_delivery_date,
+                'last_period_date': last_period_date
+            }
+        else:
+            pregnancy_info = {}
+        
+        return jsonify({
+            'success': True,
+            'is_pregnant': is_pregnant,
+            'pregnancy_info': pregnancy_info
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting pregnancy info: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/nutrition/save-detailed-food-entry', methods=['POST'])
+def save_detailed_food_entry():
+    """Save detailed food entry with allergies, medical conditions, and dietary preferences"""
+    try:
+        data = request.get_json()
+        
+        # Debug logging
+        print(f"🔍 Received detailed food entry data: {json.dumps(data, indent=2)}")
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Validate required fields (pregnancy_week is now optional - will be auto-fetched)
+        required_fields = ['userId', 'food_details', 'meal_type', 'email']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'message': f'Missing required field: {field}'
+                }), 400
+        
+        # Check if we have Patient ID for precise linking
+        patient_id = data.get('userId')
+        user_email = data.get('email')
+        
+        if not patient_id:
+            return jsonify({
+                'success': False, 
+                'message': 'Patient ID is required for precise patient linking. Please ensure you are logged in.',
+                'debug_info': {
+                    'received_userId': data.get('userId'),
+                    'received_data': data
+                }
+            }), 400
+        
+        print(f"🔍 Looking for patient with ID: {patient_id}")
+        
+        # Find patient by Patient ID (more reliable than email)
+        patient = db.patients_collection.find_one({"patient_id": patient_id})
+        if not patient:
+            return jsonify({'success': False, 'message': f'Patient not found with ID: {patient_id}'}), 404
+        
+        print(f"🔍 Found patient: {patient.get('username')} ({patient.get('email')})")
+        
+        # Auto-fetch pregnancy week from patient's profile
+        pregnancy_week = 1  # Default fallback
+        try:
+            # First try to get pregnancy week directly from patient document (your current structure)
+            if 'pregnancy_week' in patient:
+                pregnancy_week = patient['pregnancy_week']
+                print(f"✅ Auto-fetched pregnancy week from patient document: {pregnancy_week}")
+            else:
+                # Try to get from patient's health data
+                health_data = patient.get('health_data', {})
+                if 'pregnancy_week' in health_data:
+                    pregnancy_week = health_data['pregnancy_week']
+                    print(f"✅ Auto-fetched pregnancy week from health data: {pregnancy_week}")
+                else:
+                    # Try to get from pregnancy info
+                    pregnancy_info = health_data.get('pregnancy_info', {})
+                    if pregnancy_info and 'current_week' in pregnancy_info:
+                        pregnancy_week = pregnancy_info['current_week']
+                        print(f"✅ Auto-fetched pregnancy week from pregnancy info: {pregnancy_week}")
+                    else:
+                        print(f"⚠️ No pregnancy week found, using default: {pregnancy_week}")
+        except Exception as e:
+            print(f"⚠️ Error fetching pregnancy week: {e}, using default: {pregnancy_week}")
+        
+        # Create food entry (without MongoDB _id) with auto-fetched pregnancy week
+        food_entry = {
+            'food_details': data['food_details'],
+            'meal_type': data['meal_type'],
+            'pregnancy_week': pregnancy_week,  # Auto-fetched value
+            'dietary_preference': data.get('dietary_preference', 'vegetarian'),
+            'allergies': data.get('allergies', []),
+            'medical_conditions': data.get('medical_conditions', []),
+            'notes': data.get('notes', ''),
+            'timestamp': data.get('timestamp', datetime.now().isoformat()),
+            'createdAt': datetime.now(),
+            'entry_type': 'detailed',
+            'auto_fetched_pregnancy_week': True  # Flag to show it was auto-fetched
+        }
+        
+        # Add food entry to patient's food_logs array using Patient ID
+        result = db.patients_collection.update_one(
+            {"patient_id": patient_id},
+            {
+                "$push": {"food_logs": food_entry},
+                "$set": {"last_updated": datetime.now()}
+            }
+        )
+        
+        if result.modified_count > 0:
+            # Also update patient's health data with allergies and medical conditions
+            try:
+                update_data = {}
+                
+                if data.get('allergies'):
+                    update_data['health_data.allergies'] = data['allergies']
+                
+                if data.get('medical_conditions'):
+                    update_data['health_data.medical_conditions'] = data['medical_conditions']
+                
+                if data.get('dietary_preference'):
+                    update_data['health_data.dietary_preference'] = data['dietary_preference']
+                
+                if update_data:
+                    db.patients_collection.update_one(
+                        {"patient_id": patient_id},
+                        {"$set": update_data}
+                    )
+                    print(f"✅ Updated patient health data for: {patient_id}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not update patient health data: {e}")
+            
+            # Log the food entry activity
+            activity_tracker.log_activity(
+                user_email=patient.get('email'),
+                activity_type="detailed_food_entry_created",
+                activity_data={
+                    "food_entry_id": "embedded_in_patient_doc",
+                    "food_data": food_entry,
+                    "patient_id": patient_id,
+                    "total_food_logs": len(patient.get('food_logs', [])) + 1
+                }
+            )
+            
+            print(f"✅ Detailed food entry saved successfully for user: {patient_id}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Detailed food entry saved successfully to patient profile',
+                'patientId': patient_id,
+                'patientEmail': patient.get('email'),
+                'foodLogsCount': len(patient.get('food_logs', [])) + 1
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save food entry to patient profile'}), 500
+        
+    except Exception as e:
+        print(f"Error saving detailed food entry: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/nutrition/save-food-entry', methods=['POST'])
+def save_food_entry():
+    """Save basic food entry (for backward compatibility)"""
+    try:
+        data = request.get_json()
+        
+        # Debug logging
+        print(f"🔍 Received basic food entry data: {json.dumps(data, indent=2)}")
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Validate required fields (pregnancy_week is now optional - will be auto-fetched)
+        required_fields = ['userId', 'food_details', 'meal_type', 'email']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'message': f'Missing required field: {field}'
+                }), 400
+        
+        # Check if we have Patient ID for precise linking
+        patient_id = data.get('userId')
+        user_email = data.get('email')
+        
+        if not patient_id:
+            return jsonify({
+                'success': False, 
+                'message': 'Patient ID is required for precise patient linking. Please ensure you are logged in.',
+                'debug_info': {
+                    'received_userId': data.get('userId'),
+                    'received_data': data
+                }
+            }), 400
+        
+        print(f"🔍 Looking for patient with ID: {patient_id}")
+        
+        # Find patient by Patient ID (more reliable than email)
+        patient = db.patients_collection.find_one({"patient_id": patient_id})
+        if not patient:
+            return jsonify({'success': False, 'message': f'Patient not found with ID: {patient_id}'}), 404
+        
+        print(f"🔍 Found patient: {patient.get('username')} ({patient.get('email')})")
+        
+        # Auto-fetch pregnancy week from patient's profile
+        pregnancy_week = 1  # Default fallback
+        try:
+            # First try to get pregnancy week directly from patient document (your current structure)
+            if 'pregnancy_week' in patient:
+                pregnancy_week = patient['pregnancy_week']
+                print(f"✅ Auto-fetched pregnancy week from patient document: {pregnancy_week}")
+            else:
+                # Try to get from patient's health data
+                health_data = patient.get('health_data', {})
+                if 'pregnancy_week' in health_data:
+                    pregnancy_week = health_data['pregnancy_week']
+                    print(f"✅ Auto-fetched pregnancy week from health data: {pregnancy_week}")
+                else:
+                    # Try to get from pregnancy info
+                    pregnancy_info = health_data.get('pregnancy_info', {})
+                    if pregnancy_info and 'current_week' in pregnancy_info:
+                        pregnancy_week = pregnancy_info['current_week']
+                        print(f"✅ Auto-fetched pregnancy week from pregnancy info: {pregnancy_week}")
+                    else:
+                        print(f"⚠️ No pregnancy week found, using default: {pregnancy_week}")
+        except Exception as e:
+            print(f"⚠️ Error fetching pregnancy week: {e}, using default: {pregnancy_week}")
+        
+        # Create food entry (without MongoDB _id) with auto-fetched pregnancy week
+        food_entry = {
+            'food_details': data['food_details'],
+            'meal_type': data['meal_type'],
+            'pregnancy_week': pregnancy_week,  # Auto-fetched value
+            'notes': data.get('notes', ''),
+            'transcribed_text': data.get('transcribed_text', ''),
+            'nutritional_breakdown': data.get('nutritional_breakdown', {}),
+            'timestamp': data.get('timestamp', datetime.now().isoformat()),
+            'createdAt': datetime.now(),
+            'entry_type': 'basic',
+            'auto_fetched_pregnancy_week': True  # Flag to show it was auto-fetched
+        }
+        
+        # Add food entry to patient's food_logs array using Patient ID
+        result = db.patients_collection.update_one(
+            {"patient_id": patient_id},
+            {
+                "$push": {"food_logs": food_entry},
+                "$set": {"last_updated": datetime.now()}
+            }
+        )
+        
+        if result.modified_count > 0:
+            # Log the food entry activity
+            activity_tracker.log_activity(
+                user_email=patient.get('email'),
+                activity_type="basic_food_entry_created",
+                activity_data={
+                    "food_entry_id": "embedded_in_patient_doc",
+                    "food_data": food_entry,
+                    "patient_id": patient_id,
+                    "total_food_logs": len(patient.get('food_logs', [])) + 1
+                }
+            )
+            
+            print(f"✅ Basic food entry saved successfully for user: {patient_id}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Food entry saved successfully to patient profile',
+                'patientId': patient_id,
+                'patientEmail': patient.get('email'),
+                'foodLogsCount': len(patient.get('food_logs', [])) + 1
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save food entry to patient profile'}), 500
+        
+    except Exception as e:
+        print(f"Error saving food entry: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/nutrition/get-food-entries/<user_id>', methods=['GET'])
+def get_food_entries(user_id):
+    """Get food entries for a specific user"""
+    try:
+        print(f"🔍 Getting food entries for user ID: {user_id}")
+        
+        # Find patient by Patient ID
+        patient = db.patients_collection.find_one({"patient_id": user_id})
+        if not patient:
+            return jsonify({
+                'success': False,
+                'message': f'Patient not found with ID: {user_id}'
+            }), 404
+        
+        # Get food logs from patient document
+        food_logs = patient.get('food_logs', [])
+        
+        # Sort by newest first (most recent createdAt)
+        food_logs.sort(key=lambda x: x.get('createdAt', datetime.min), reverse=True)
+        
+        # Convert datetime objects to strings for JSON serialization
+        for entry in food_logs:
+            if 'createdAt' in entry:
+                entry['createdAt'] = entry['createdAt'].isoformat()
+        
+        print(f"✅ Retrieved {len(food_logs)} food entries for user: {user_id}")
+        
+        return jsonify({
+            'success': True,
+            'entries': food_logs,
+            'total_entries': len(food_logs)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting food entries: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/nutrition/profile/<user_id>', methods=['GET'])
+def get_user_profile(user_id):
+    """Get user profile information"""
+    try:
+        if db.patients_collection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Database not available'
+            }), 500
+        
+        # Find patient by patient_id
+        patient = db.patients_collection.find_one({"patient_id": user_id})
+        if not patient:
+            return jsonify({
+                'success': False,
+                'message': f'Patient not found with ID: {user_id}'
+            }), 404
+        
+        # Extract relevant profile information
+        profile = {
+            'username': patient.get('username', ''),
+            'email': patient.get('email', ''),
+            'pregnancy_week': patient.get('health_data', {}).get('pregnancy_week', 1),
+            'allergies': patient.get('health_data', {}).get('allergies', []),
+            'medical_conditions': patient.get('health_data', {}).get('medical_conditions', []),
+            'dietary_preference': patient.get('health_data', {}).get('dietary_preference', 'vegetarian')
+        }
+        
+        return jsonify({
+            'success': True,
+            'profile': profile
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting user profile: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/nutrition/update-pregnancy-info', methods=['POST'])
+def update_pregnancy_info():
+    """Update pregnancy information for a patient"""
+    try:
+        if db.patients_collection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Database not available'
+            }), 500
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        patient_id = data.get('patient_id')
+        if not patient_id:
+            return jsonify({
+                'success': False,
+                'message': 'Patient ID is required'
+            }), 400
+        
+        # Find and update patient
+        update_data = {
+            'health_data.is_pregnant': data.get('is_pregnant', True),
+            'last_updated': datetime.now()
+        }
+        
+        if data.get('last_period_date'):
+            update_data['health_data.pregnancy_info.last_period_date'] = data['last_period_date']
+        
+        result = db.patients_collection.update_one(
+            {"patient_id": patient_id},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count > 0:
+            return jsonify({
+                'success': True,
+                'message': 'Pregnancy information updated successfully'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'No changes made to pregnancy information'
+            }), 400
+        
+    except Exception as e:
+        print(f"Error updating pregnancy info: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/nutrition/daily-calorie-summary/<user_id>', methods=['GET'])
+def get_daily_calorie_summary(user_id):
+    """Get daily calorie summary for a user"""
+    try:
+        print(f"🔍 Getting daily calorie summary for user ID: {user_id}")
+        
+        # Get today's date
+        today = datetime.now().date()
+        
+        # Find patient by Patient ID
+        patient = db.patients_collection.find_one({"patient_id": user_id})
+        if not patient:
+            return jsonify({
+                'success': False,
+                'message': f'Patient not found with ID: {user_id}'
+            }), 404
+        
+        # Get food logs from patient document
+        food_logs = patient.get('food_logs', [])
+        
+        # Filter food entries for today
+        today_entries = []
+        for entry in food_logs:
+            entry_date = entry.get('createdAt')
+            if isinstance(entry_date, datetime):
+                if entry_date.date() == today:
+                    today_entries.append(entry)
+            elif isinstance(entry_date, str):
+                try:
+                    entry_datetime = datetime.fromisoformat(entry_date.replace('Z', '+00:00'))
+                    if entry_datetime.date() == today:
+                        today_entries.append(entry)
+                except:
+                    continue
+        
+        # Calculate summary
+        total_calories = 0
+        total_protein = 0
+        total_carbs = 0
+        total_fat = 0
+        meals_eaten = len(today_entries)
+        
+        for entry in today_entries:
+            nutritional = entry.get('nutritional_breakdown', {})
+            total_calories += nutritional.get('estimated_calories', 0)
+            total_protein += nutritional.get('protein_grams', 0)
+            total_carbs += nutritional.get('carbohydrates_grams', 0)
+            total_fat += nutritional.get('fat_grams', 0)
+        
+        # Mock recommendations (in real app, these would come from nutrition database)
+        recommended_calories = 2200  # Example for pregnant woman
+        calories_remaining = max(0, recommended_calories - total_calories)
+        meals_remaining = max(0, 5 - meals_eaten)  # Assuming 5 meals per day
+        calories_per_remaining_meal = calories_remaining // meals_remaining if meals_remaining > 0 else 0
+        percentage_of_daily_needs = (total_calories / recommended_calories * 100) if recommended_calories > 0 else 0
+        
+        daily_summary = {
+            'total_calories_today': total_calories,
+            'total_protein_today': total_protein,
+            'total_carbs_today': total_carbs,
+            'total_fat_today': total_fat,
+            'meals_eaten_today': meals_eaten
+        }
+        
+        calorie_recommendations = {
+            'recommended_daily_calories': recommended_calories,
+            'calories_remaining': calories_remaining,
+            'meals_remaining': meals_remaining,
+            'calories_per_remaining_meal': calories_per_remaining_meal,
+            'percentage_of_daily_needs': round(percentage_of_daily_needs, 1)
+        }
+        
+        smart_tips = [
+            "Stay hydrated by drinking plenty of water",
+            "Include protein-rich foods in your meals",
+            "Eat small, frequent meals throughout the day",
+            "Focus on whole grains and fresh vegetables"
+        ]
+        
+        print(f"✅ Daily calorie summary calculated for user: {user_id}")
+        print(f"📊 Meals eaten today: {meals_eaten}")
+        print(f"🔥 Total calories: {total_calories}")
+        
+        return jsonify({
+            'success': True,
+            'date': today.isoformat(),
+            'daily_summary': daily_summary,
+            'calorie_recommendations': calorie_recommendations,
+            'smart_tips': smart_tips
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting daily calorie summary: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/nutrition/analyze-nutrition', methods=['POST'])
+def analyze_nutrition():
+    """Analyze nutrition for food input"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        food_input = data.get('food_input', '')
+        user_id = data.get('user_id')  # Get user ID to auto-fetch pregnancy week
+        
+        if not food_input:
+            return jsonify({
+                'success': False,
+                'message': 'Food input is required'
+            }), 400
+        
+        # Auto-fetch pregnancy week from patient profile
+        pregnancy_week = 1  # Default fallback
+        if user_id:
+            try:
+                # Find patient by Patient ID
+                patient = db.patients_collection.find_one({"patient_id": user_id})
+                if patient:
+                    # First try to get pregnancy week directly from patient document
+                    if 'pregnancy_week' in patient:
+                        pregnancy_week = patient['pregnancy_week']
+                        print(f"✅ Auto-fetched pregnancy week for nutrition analysis: {pregnancy_week}")
+                    else:
+                        # Try to get from patient's health data
+                        health_data = patient.get('health_data', {})
+                        if 'pregnancy_week' in health_data:
+                            pregnancy_week = health_data['pregnancy_week']
+                            print(f"✅ Auto-fetched pregnancy week from health data: {pregnancy_week}")
+                        else:
+                            print(f"⚠️ No pregnancy week found, using default: {pregnancy_week}")
+                else:
+                    print(f"⚠️ Patient not found for ID: {user_id}, using default pregnancy week: {pregnancy_week}")
+            except Exception as e:
+                print(f"⚠️ Error fetching pregnancy week: {e}, using default: {pregnancy_week}")
+        else:
+            print(f"⚠️ No user_id provided, using default pregnancy week: {pregnancy_week}")
+        
+        # Mock nutrition analysis (in real app, this would use AI/ML models)
+        # This is a simplified example
+        estimated_calories = len(food_input) * 2  # Rough estimate
+        protein_grams = max(10, estimated_calories // 20)
+        carbs_grams = max(20, estimated_calories // 15)
+        fat_grams = max(5, estimated_calories // 25)
+        fiber_grams = max(3, estimated_calories // 30)
+        
+        nutritional_breakdown = {
+            'estimated_calories': estimated_calories,
+            'protein_grams': protein_grams,
+            'carbohydrates_grams': carbs_grams,
+            'fat_grams': fat_grams,
+            'fiber_grams': fiber_grams
+        }
+        
+        # Mock daily calorie tracking
+        daily_calorie_tracking = {
+            'minimum_daily_calories': 1800,
+            'recommended_daily_calories': 2200,
+            'calories_contributed': estimated_calories,
+            'percentage_of_daily_needs': round((estimated_calories / 2200) * 100, 1)
+        }
+        
+        # Mock remaining calories
+        remaining_calories = {
+            'calories_remaining': max(0, 2200 - estimated_calories),
+            'meals_remaining': 4,  # Assuming 5 meals per day
+            'calories_per_remaining_meal': max(0, (2200 - estimated_calories) // 4)
+        }
+        
+        # Mock smart tips
+        smart_tips_for_today = {
+            'next_meal_suggestions': 'Consider adding leafy greens for folate',
+            'best_combinations': 'Pair with whole grains for sustained energy',
+            'hydration_tips': 'Drink 8-10 glasses of water daily',
+            'pregnancy_week_specific_advice': f'At week {pregnancy_week}, focus on iron-rich foods'
+        }
+        
+        # Mock pregnancy benefits
+        pregnancy_benefits = f"This meal provides essential nutrients for week {pregnancy_week} of pregnancy, including protein for fetal development and fiber for digestive health."
+        
+        # Mock safety considerations
+        safety_considerations = "Ensure all foods are properly cooked and avoid raw seafood, unpasteurized dairy, and undercooked meats."
+        
+        # Mock portion recommendations
+        portion_recommendations = f"Consider this as a moderate portion. For pregnancy week {pregnancy_week}, aim for balanced meals with adequate protein and fiber."
+        
+        # Mock alternative suggestions
+        alternative_suggestions = "If you have food allergies, consider substituting with similar nutrient-rich alternatives. Consult your healthcare provider for personalized advice."
+        
+        return jsonify({
+            'success': True,
+            'nutritional_breakdown': nutritional_breakdown,
+            'daily_calorie_tracking': daily_calorie_tracking,
+            'remaining_calories': remaining_calories,
+            'smart_tips_for_today': smart_tips_for_today,
+            'pregnancy_benefits': pregnancy_benefits,
+            'safety_considerations': safety_considerations,
+            'portion_recommendations': portion_recommendations,
+            'alternative_suggestions': alternative_suggestions
+        }), 200
+        
+    except Exception as e:
+        print(f"Error analyzing nutrition: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
 @app.route('/get-patient-profile-by-email/<email>', methods=['GET'])
 def get_patient_profile_by_email(email):
     """Get patient profile by email"""

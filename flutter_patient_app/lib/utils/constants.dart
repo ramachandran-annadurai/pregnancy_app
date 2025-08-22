@@ -15,15 +15,39 @@ class AppColors {
 }
 
 class ApiConfig {
-  // For web browser testing - try different localhost variations
-  static const String baseUrl = 'http://127.0.0.1:5000';  // Changed from localhost to 127.0.0.1
+  // Backend server URLs - updated to match actual running server
+  static const String baseUrl = 'http://127.0.0.1:5000';  // Main backend server
   static const String doctorBaseUrl = 'http://127.0.0.1:5001';
-  static const String nutritionBaseUrl = 'http://127.0.0.1:5000';  // Now using main backend
+  // IMPORTANT: Nutrition backend is now integrated into main backend
+  static const String nutritionBaseUrl = 'http://127.0.0.1:5000';  // Now uses main backend
   
-  // Alternative URLs if 127.0.0.1 doesn't work
+  // Alternative URLs for different platforms
   static const String baseUrlAlt = 'http://localhost:5000';
   static const String baseUrlLocal = 'http://0.0.0.0:5000';
   
+  // Platform-specific URLs
+  static const String androidEmulatorUrl = 'http://10.0.2.2:5000';  // Android emulator
+  static const String iosSimulatorUrl = 'http://127.0.0.1:5000';     // iOS simulator
+  
+  // Get the best URL for the current platform
+  static String getBestBaseUrl() {
+    // For now, return the main URL
+    // You can add platform detection logic here if needed
+    return baseUrl;
+  }
+  
+  // Get alternative URLs for testing
+  static List<String> getAlternativeUrls() {
+    return [
+      baseUrl,
+      baseUrlAlt,
+      androidEmulatorUrl,
+      iosSimulatorUrl,
+    ];
+  }
+  
+  // Voice transcription endpoint - MUST use nutritionBaseUrl (port 5000)
+  static const String transcribeEndpoint = '/nutrition/transcribe';
   static const String signupEndpoint = '/signup';
   static const String verifyOtpEndpoint = '/verify-otp';
   static const String loginEndpoint = '/login';
@@ -34,7 +58,6 @@ class ApiConfig {
   static const String getProfileEndpoint = '/profile';
   static const String sendOtpEndpoint = '/send-otp';
   static const String completeNutritionEndpoint = '/complete-nutrition';
-  static const String transcribeEndpoint = '/transcribe';
   static const String transcriptsEndpoint = '/transcripts';
 }
 
