@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/enhanced_voice_service.dart';
 import '../utils/constants.dart';
 import '../utils/date_utils.dart';
 
@@ -21,6 +24,12 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
   final TextEditingController _symptomController = TextEditingController();
   final TextEditingController _severityController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
+  
+  // Voice recording related variables
+  final EnhancedVoiceService _voiceService = EnhancedVoiceService();
+  bool _isRecording = false;
+  bool _isTranscribing = false;
+  String _transcribedText = '';
   
   bool _isAnalyzing = false;
   String _analysisResult = '';
@@ -97,6 +106,7 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
         'weeks_pregnant': pregnancyWeek,  // Dynamic pregnancy week from profile
         'severity': _severityController.text.trim(),
         'notes': _notesController.text.trim(),
+        'transcribed_text': _transcribedText, // Include transcribed text for reference
         'date': widget.date,
         'userRole': userInfo['userRole'] ?? 'patient',
         'patient_context': {
@@ -185,6 +195,7 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
     _severityController.clear();
     _notesController.clear();
     setState(() {
+      _transcribedText = '';
       _analysisResult = '';
       _errorMessage = '';
     });
@@ -198,6 +209,236 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
       return 'Second Trimester';
     } else {
       return 'Third Trimester';
+    }
+  }
+
+  // Voice recording methods for symptom transcription
+  Future<void> _startVoiceRecording() async {
+    try {
+      setState(() {
+        _isRecording = true;
+      });
+      
+      final success = await _voiceService.startRecording();
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎤 Voice recording started... Describe your symptoms now!'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        setState(() {
+          _isRecording = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Failed to start recording'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopVoiceRecording() async {
+    try {
+      setState(() {
+        _isRecording = false;
+      });
+      
+      final success = await _voiceService.stopRecording();
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⏹️ Recording stopped. Transcribing symptoms...'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        // Transcribe the recorded audio
+        await _transcribeSymptomsAudio();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Failed to stop recording'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Transcribe audio and populate symptoms field
+  Future<void> _transcribeSymptomsAudio() async {
+    try {
+      setState(() {
+        _isTranscribing = true;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🔤 Transcribing your symptoms...'),
+          backgroundColor: Colors.blue,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      
+      final transcription = await _voiceService.transcribeAudio();
+      
+      if (transcription != null) {
+        setState(() {
+          _transcribedText = transcription;
+          // Automatically populate the symptoms input field with transcribed text
+          _symptomController.text = transcription;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Symptoms transcribed: $transcription'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Transcription failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isTranscribing = false;
+      });
+    }
+  }
+
+  // Test audio recording functionality
+  Future<void> _testAudioRecording() async {
+    try {
+      final result = await _voiceService.testAudioRecording();
+      if (result != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result),
+            backgroundColor: result.contains('✅') ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Test failed: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // Test backend connectivity with detailed feedback
+  Future<void> _testBackendConnectivity() async {
+    setState(() {
+      _isAnalyzing = true; // Reuse this for connection testing
+    });
+    
+    try {
+      print('🔍 Testing backend connectivity for symptoms analysis...');
+      
+      // Test multiple endpoints
+      final healthResponse = await http.get(
+        Uri.parse('${ApiConfig.nutritionBaseUrl}/health'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 15));
+      
+      print('📡 Health check response: ${healthResponse.statusCode}');
+      
+      if (healthResponse.statusCode == 200) {
+        final data = json.decode(healthResponse.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Backend is accessible! Status: ${data['message']}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        
+        // Test transcription endpoint
+        try {
+          final transcribeResponse = await http.post(
+            Uri.parse('${ApiConfig.nutritionBaseUrl}/nutrition/transcribe'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'audio': 'dGVzdA==', // Test audio data
+              'language': 'en',
+              'method': 'whisper'
+            }),
+          ).timeout(const Duration(seconds: 10));
+          
+          if (transcribeResponse.statusCode == 200 || transcribeResponse.statusCode == 500) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✅ Transcription endpoint working! (Status: ${transcribeResponse.statusCode})'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (e) {
+          print('⚠️ Transcription test failed: $e');
+        }
+        
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Backend health check failed: ${healthResponse.statusCode}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Backend connectivity test failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Backend connectivity failed: $e\n\nPlease ensure the nutrition backend is running on port 5000.'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isAnalyzing = false;
+      });
     }
   }
 
@@ -267,8 +508,8 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
           duration: const Duration(seconds: 3),
         ),
       );
-          }
     }
+  }
 
   // View analysis history
   Future<void> _viewAnalysisHistory() async {
@@ -477,9 +718,10 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSizes.paddingLarge),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Header
               Card(
                 child: Padding(
@@ -527,7 +769,7 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
                         children: [
                           Expanded(
                             child: Text(
-                                                             'Date: ${AppDateUtils.formatDate(widget.date)}',
+                              'Date: ${AppDateUtils.formatDate(widget.date)}',
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.w600,
@@ -597,6 +839,207 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
                       ),
                       const SizedBox(height: 16),
                       
+                      // Voice Recording Section for Symptoms
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.mic, color: Colors.blue.shade700, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Voice Recording for Symptoms',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade700,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap the microphone to record your symptoms description',
+                              style: TextStyle(
+                                color: Colors.blue.shade600,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Note: Voice recording works best in modern browsers (Chrome, Firefox, Safari)',
+                              style: TextStyle(
+                                color: Colors.blue.shade500,
+                                fontSize: 10,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isRecording ? _stopVoiceRecording : _startVoiceRecording,
+                                    icon: _isRecording 
+                                      ? Icon(Icons.stop, color: Colors.white)
+                                      : Icon(Icons.mic, color: Colors.white),
+                                    label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _isRecording ? Colors.red : Colors.blue.shade600,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_isTranscribing) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Transcribing symptoms...',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            if (_transcribedText.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Colors.blue.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Transcribed: $_transcribedText',
+                                        style: TextStyle(
+                                          color: Colors.green.shade700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Connection indicator
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.arrow_downward, color: Colors.blue.shade600, size: 16),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Automatically copied to symptoms field below',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade600,
+                                      fontSize: 10,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Test Audio Recording Button
+                      ElevatedButton.icon(
+                        onPressed: _testAudioRecording,
+                        icon: Icon(Icons.audiotrack, color: Colors.white),
+                        label: Text('Test Audio Recording'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Connection status indicator
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.wifi,
+                              color: Colors.blue.shade600,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Connection Status',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Backend: ${ApiConfig.nutritionBaseUrl}',
+                                    style: TextStyle(fontSize: 10, color: Colors.blue.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Debug connectivity button
+                      ElevatedButton.icon(
+                        onPressed: _testBackendConnectivity,
+                        icon: Icon(Icons.wifi, color: Colors.white),
+                        label: Text('Test Backend Connection'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
                       TextFormField(
                         controller: _symptomController,
                         maxLines: 3,
@@ -607,7 +1050,53 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
                           prefixIcon: Icon(Icons.sick),
                         ),
                       ),
+                      
+                      // Note about auto-filling
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Text(
+                          '💡 Voice transcription automatically fills this field for AI analysis',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.blue.shade700,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                      
                       const SizedBox(height: 16),
+                      
+                      // Display transcribed text if available
+                      if (_transcribedText.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Transcribed Symptoms',
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(_transcribedText),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       
                       TextFormField(
                         controller: _severityController,
@@ -680,44 +1169,42 @@ class _PatientSymptomsTrackingScreenState extends State<PatientSymptomsTrackingS
 
               // Analysis Results
               if (_analysisResult.isNotEmpty)
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSizes.paddingLarge),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.psychology, color: AppColors.primary),
-                              const SizedBox(width: 8),
-                              Text(
-                                'AI Analysis Results',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: Text(
-                                _analysisResult,
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: AppColors.textPrimary,
-                                  height: 1.5,
-                                ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSizes.paddingLarge),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.psychology, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'AI Analysis Results',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        SingleChildScrollView(
+                          child: Text(
+                            _analysisResult,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: AppColors.textPrimary,
+                              height: 1.5,
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

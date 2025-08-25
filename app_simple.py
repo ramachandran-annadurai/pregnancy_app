@@ -5464,6 +5464,8 @@ def save_food_entry():
         print("🍽️ Food entry save request received")
         
         data = request.get_json()
+        print(f"🍽️ Received food entry data: {data}")
+        
         if not data:
             return jsonify({
                 'success': False,
@@ -5471,7 +5473,8 @@ def save_food_entry():
             }), 400
         
         user_id = data.get('userId')
-        food_input = data.get('food_input', '')
+        # Accept both 'food_input' and 'food_details' for backward compatibility
+        food_input = data.get('food_input') or data.get('food_details', '')
         pregnancy_week = data.get('pregnancy_week', 1)
         
         if not user_id:
@@ -5498,12 +5501,18 @@ def save_food_entry():
         if 'food_data' not in patient:
             patient['food_data'] = []
         
-        # Create food entry
+        # Create food entry with all available fields
         food_entry = {
             'type': 'basic_entry',
             'food_input': food_input,
+            'food_details': food_input,  # Also store as food_details for consistency
             'pregnancy_week': pregnancy_week,
-            'timestamp': datetime.now().isoformat(),
+            'meal_type': data.get('meal_type', ''),
+            'notes': data.get('notes', ''),
+            'transcribed_text': data.get('transcribed_text', ''),
+            'nutritional_breakdown': data.get('nutritional_breakdown', {}),
+            'gpt4_analysis': data.get('gpt4_analysis', {}),
+            'timestamp': data.get('timestamp', datetime.now().isoformat()),
             'created_at': datetime.now()
         }
         
