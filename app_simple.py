@@ -656,10 +656,12 @@ class QuantumVectorService:
     
     def ensure_collection(self):
         """Ensure Qdrant collection exists with proper configuration"""
-        if not self.client:
+        if not self.client or not QDRANT_AVAILABLE:
             return False
         
         try:
+            from qdrant_client.http.models import VectorParams, Distance, PayloadSchemaType
+            
             collections = self.client.get_collections().collections
             names = {c.name for c in collections}
             
@@ -684,6 +686,9 @@ class QuantumVectorService:
                 pass  # Index might already exist
             
             return True
+        except ImportError:
+            print("⚠️ Qdrant models not available for collection setup")
+            return False
         except Exception as e:
             print(f"❌ Collection setup failed: {e}")
             return False
@@ -700,22 +705,31 @@ class QuantumVectorService:
             print(f"❌ Text embedding failed: {e}")
             return []
     
-    def build_trimester_filter(self, weeks_pregnant: int) -> Filter:
+    def build_trimester_filter(self, weeks_pregnant: int):
         """Build trimester filter for vector search"""
-        if not self.client:
+        if not self.client or not QDRANT_AVAILABLE:
             return None
         
         if weeks_pregnant <= 0:
             return None
         
-        trimester = "first" if weeks_pregnant <= 13 else ("second" if weeks_pregnant <= 27 else "third")
-        
-        return Filter(
-            should=[
-                FieldCondition(key="trimester", match=MatchValue(value=trimester)),
-                FieldCondition(key="trimester", match=MatchValue(value="all")),
-            ]
-        )
+        try:
+            trimester = "first" if weeks_pregnant <= 13 else ("second" if weeks_pregnant <= 27 else "third")
+            
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+            
+            return Filter(
+                should=[
+                    FieldCondition(key="trimester", match=MatchValue(value=trimester)),
+                    FieldCondition(key="trimester", match=MatchValue(value="all")),
+                ]
+            )
+        except ImportError:
+            print("⚠️ Qdrant models not available for filter creation")
+            return None
+        except Exception as e:
+            print(f"❌ Filter creation failed: {e}")
+            return None
     
     def search_knowledge(self, query_text: str, weeks_pregnant: int) -> list:
         """Search pregnancy knowledge base using vector similarity"""
@@ -4277,18 +4291,26 @@ def add_knowledge():
             }), 500
         
         # Create point structure
-        point = PointStruct(
-            id=str(uuid.uuid4()),
-            vector=text_vector,
-            payload={
-                "text": data['text'],
-                "source": data['source'],
-                "trimester": data['trimester'],
-                "tags": data.get('tags', []),
-                "triage": data.get('triage', 'general'),
-                "updated_at": datetime.now().isoformat()
-            }
-        )
+        try:
+            from qdrant_client.http.models import PointStruct
+            
+            point = PointStruct(
+                id=str(uuid.uuid4()),
+                vector=text_vector,
+                payload={
+                    "text": data['text'],
+                    "source": data['source"],
+                    "trimester": data['trimester'],
+                    "tags": data.get('tags', []),
+                    "triage": data.get('triage', 'general'),
+                    "updated_at": datetime.now().isoformat()
+                }
+            )
+        except ImportError:
+            return jsonify({
+                'success': False,
+                'message': 'Qdrant models not available for point creation'
+            }), 503
         
         # Ensure collection exists
         quantum_service.ensure_collection()
