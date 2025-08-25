@@ -700,7 +700,7 @@ class QuantumVectorService:
             print(f"❌ Text embedding failed: {e}")
             return []
     
-    def build_trimester_filter(self, weeks_pregnant: int) -> Filter:
+    def build_trimester_filter(self, weeks_pregnant: int):
         """Build trimester filter for vector search"""
         if not self.client:
             return None
